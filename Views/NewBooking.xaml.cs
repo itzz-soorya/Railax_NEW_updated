@@ -1,0 +1,1209 @@
+﻿using System;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using UserModule.Models;
+
+namespace UserModule
+{
+    public partial class NewBooking : UserControl
+    {
+        // Regex patterns for input validation
+        private static readonly Regex _regex = new Regex("^[a-zA-Z ]+$");
+        private static readonly Regex _regexNumeric = new Regex("^[0-9]+$");
+        private static readonly Regex _regexAlphanumeric = new Regex("^[A-Za-z0-9]+$");
+
+        // Constants
+        private const int PHONE_NUMBER_LENGTH = 10;
+        private const int AADHAR_NUMBER_LENGTH = 12;
+        private const int PAN_NUMBER_LENGTH = 10;
+        private const int PNR_NUMBER_LENGTH = 10;
+
+        // Color brushes for UI (reusable to avoid creating new instances repeatedly)
+        private static readonly SolidColorBrush PlaceholderBrush = new SolidColorBrush(
+            (Color)ColorConverter.ConvertFromString("#999999"));
+        private static readonly SolidColorBrush ContentBrush = new SolidColorBrush(
+            (Color)ColorConverter.ConvertFromString("#333333"));
+
+        private readonly Dashboard? _dashboardInstance;
+        private readonly DispatcherTimer dateTimeTimer = new DispatcherTimer();
+
+        // ===== Parameterless constructor for XAML =====
+        public NewBooking()
+        {
+            InitializeComponent();
+
+            txtFirstName.TextChanged += (s, e) => errCustomer.Visibility = Visibility.Collapsed;
+            txtPhone.TextChanged += (s, e) => errPhone.Visibility = Visibility.Collapsed;
+            txtPersons.TextChanged += (s, e) => errPersons.Visibility = Visibility.Collapsed;
+            txtPaid.TextChanged += (s, e) => errPaid.Visibility = Visibility.Collapsed;
+            txtIdNumber.TextChanged += (s, e) => errIdNumber.Visibility = Visibility.Collapsed;
+
+            // Change TextBox foreground color based on content
+            txtFirstName.TextChanged += TextBox_ForegroundColorChanged;
+            txtLastName.TextChanged += TextBox_ForegroundColorChanged;
+            txtPhone.TextChanged += TextBox_ForegroundColorChanged;
+            txtPersons.TextChanged += TextBox_ForegroundColorChanged;
+            txtIdNumber.TextChanged += TextBox_ForegroundColorChanged;
+
+            txtSeats.SelectionChanged += (s, e) => errSeats.Visibility = Visibility.Collapsed;
+            txtHours.SelectionChanged += (s, e) => errHours.Visibility = Visibility.Collapsed;
+            cmbIdType.SelectionChanged += (s, e) => errIdType.Visibility = Visibility.Collapsed;
+
+            // Update total amount automatically when user changes inputs
+            txtSeats.SelectionChanged += (s, e) => UpdateAmount();
+            txtHours.SelectionChanged += (s, e) => UpdateAmount();
+            txtPersons.TextChanged += (s, e) => UpdateAmount();
+
+            txtPhone.TextChanged += (s, e) =>
+            {
+                if (txtPhone.Text.Length == PHONE_NUMBER_LENGTH)
+                {
+                    GenerateBillIDFromPhone();
+                }
+                else
+                {
+                    txtBookingID.Text = "";
+                }
+            };
+
+            // ✅ Prevent Paid from exceeding Total
+            txtPaid.TextChanged += (s, e) =>
+            {
+                if (decimal.TryParse(txtPaid.Text, out decimal paid) &&
+                    decimal.TryParse(txtTotalAmount.Text, out decimal total) &&
+                    paid > total)
+                {
+                    ShowAlert("warning", "Advance amount cannot exceed the total amount!");
+                    txtPaid.Text = total.ToString("0.##");
+                    txtPaid.SelectionStart = txtPaid.Text.Length;
+                }
+            };
+
+        }
+
+        /// <summary>
+        /// Shows an alert message using MessageBox
+        /// </summary>
+        private void ShowAlert(string type, string message)
+        {
+            string title = type switch
+            {
+                "error" => "Error",
+                "warning" => "Warning",
+                "success" => "Success",
+                "info" => "Information",
+                _ => "Information"
+            };
+
+            MessageBoxImage icon = type switch
+            {
+                "error" => MessageBoxImage.Error,
+                "warning" => MessageBoxImage.Warning,
+                "success" => MessageBoxImage.Information,
+                "info" => MessageBoxImage.Information,
+                _ => MessageBoxImage.Information
+            };
+
+            // MessageBox.Show(message, title, MessageBoxButton.OK, icon);
+        }
+
+        /// <summary>
+        /// Sets the foreground color of a control based on placeholder state
+        /// </summary>
+        private void SetForegroundColor(Control control, bool isPlaceholder)
+        {
+            control.Foreground = isPlaceholder ? PlaceholderBrush : ContentBrush;
+        }
+
+
+        private void CustomerName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string firstName = txtFirstName.Text.Trim();
+            string lastName = txtLastName.Text.Trim();
+
+            if (string.IsNullOrEmpty(firstName))
+            {
+                errCustomer.Visibility = Visibility.Visible; // Show error
+                txtCustomer.Text = "";
+            }
+            else
+            {
+                errCustomer.Visibility = Visibility.Collapsed;
+
+                if (string.IsNullOrEmpty(lastName))
+                {
+                    txtCustomer.Text = firstName;
+                }
+                else
+                {
+                    txtCustomer.Text = $"{firstName} {lastName}";
+                }
+            }
+        }
+
+        private void TextBox_ForegroundColorChanged(object sender, TextChangedEventArgs e)
+        {
+            if (sender is TextBox textBox)
+            {
+                // If text is empty, show grey (placeholder color)
+                SetForegroundColor(textBox, string.IsNullOrEmpty(textBox.Text));
+            }
+        }
+
+        private void txtSeats_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // If user picks index > 0, collapse the placeholder item so it no longer appears
+            if (txtSeats.SelectedIndex > 0)
+            {
+                seatsPlaceholder.Visibility = Visibility.Collapsed;
+                SetForegroundColor(txtSeats, false);
+            }
+            else
+            {
+                seatsPlaceholder.Visibility = Visibility.Visible;
+                SetForegroundColor(txtSeats, true);
+            }
+        }
+
+        private void txtHours_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (txtHours.SelectedIndex > 0)
+            {
+                hoursPlaceholder.Visibility = Visibility.Collapsed;
+                SetForegroundColor(txtHours, false);
+            }
+            else
+            {
+                hoursPlaceholder.Visibility = Visibility.Visible;
+                SetForegroundColor(txtHours, true);
+            }
+        }
+
+        private void txtHours_DropDownOpened(object sender, EventArgs e)
+        {
+            // Scroll to top when dropdown opens
+            var comboBox = sender as ComboBox;
+            if (comboBox != null && comboBox.Items.Count > 0)
+            {
+                // Use Dispatcher to ensure the dropdown is fully rendered
+                comboBox.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    // Scroll to the first item (placeholder)
+                    comboBox.Items.MoveCurrentToFirst();
+                    var firstItem = comboBox.ItemContainerGenerator.ContainerFromIndex(0);
+                    if (firstItem != null)
+                    {
+                        (firstItem as ComboBoxItem)?.BringIntoView();
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        private void cmbIdType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbIdType.SelectedItem is ComboBoxItem selectedItem && lblIdInput != null)
+            {
+                string selectedType = selectedItem.Content?.ToString()?.ToLower() ?? "";
+
+                // ✅ Always clear ID number when user changes dropdown
+                txtIdNumber.Clear();
+                errIdNumber.Visibility = Visibility.Collapsed;
+
+                // Remove any previous input restrictions
+                txtIdNumber.PreviewTextInput -= NumbersOnly_PreviewTextInput;
+                txtIdNumber.PreviewTextInput -= Alphanumeric_PreviewTextInput;
+
+                if (string.IsNullOrWhiteSpace(selectedType) || selectedType == "select id")
+                {
+                    lblIdInput.Text = "Enter ID Number";
+                    txtIdNumber.MaxLength = 0;
+                    txtIdNumber.IsEnabled = false; // Disable input until valid selection
+                    SetForegroundColor(cmbIdType, true);
+                }
+                else
+                {
+                    lblIdInput.Text = $"Enter {selectedType} number";
+                    txtIdNumber.IsEnabled = true; // Enable input when valid ID type is selected
+                    SetForegroundColor(cmbIdType, false);
+
+                    // ✅ Apply input validation based on selected type
+                    switch (selectedType)
+                    {
+                        case "aadhar":
+                            txtIdNumber.MaxLength = AADHAR_NUMBER_LENGTH;
+                            txtIdNumber.PreviewTextInput += NumbersOnly_PreviewTextInput;
+                            break;
+
+                        case "pan":
+                            txtIdNumber.MaxLength = PAN_NUMBER_LENGTH;
+                            txtIdNumber.PreviewTextInput += Alphanumeric_PreviewTextInput;
+                            break;
+
+                        case "pnr":
+                            txtIdNumber.MaxLength = PNR_NUMBER_LENGTH;
+                            txtIdNumber.PreviewTextInput += NumbersOnly_PreviewTextInput;
+                            break;
+
+                        default:
+                            txtIdNumber.MaxLength = 0;
+                            break;
+                    }
+                }
+
+                // ✅ Clear the ID number *again* (extra safety)
+                txtIdNumber.Text = string.Empty;
+
+                // ✅ Optional: focus back to make user type again
+                txtIdNumber.Focus();
+            }
+        }
+
+
+
+
+
+        // ===== Constructor with Dashboard instance =====
+        public NewBooking(Dashboard dashboard) : this()
+        {
+            _dashboardInstance = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+            GenerateBillIDFromPhone();  // Initialize DispatcherTimer to update date and time
+
+            dateTimeTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1) // update every second
+            };
+            dateTimeTimer.Tick += UpdateDateTime;
+            dateTimeTimer.Start();
+        }
+
+        private void UserControl_Unloaded(object sender, RoutedEventArgs e)
+        {
+            // Stop and dispose timer to prevent memory leaks
+            dateTimeTimer?.Stop();
+        }
+
+        private void BillingControl_CloseRequested(object? sender, EventArgs e)
+        {
+            // Clear all input fields in NewBooking
+            txtCustomer.Text = string.Empty;
+            txtPhone.Text = string.Empty;
+            txtPersons.Text = string.Empty;
+            txtBookingID.Text = string.Empty;
+            txtRate.Text = string.Empty;
+            txtTotalAmount.Text = string.Empty;
+            txtPaid.Text = string.Empty;
+
+            // Reset ComboBoxes
+            txtSeats.SelectedIndex = 0;
+            txtHours.SelectedIndex = 0;
+
+            // Reset placeholders visibility if any
+            seatsPlaceholder.Visibility = Visibility.Visible;
+            hoursPlaceholder.Visibility = Visibility.Visible;
+
+            // Generate new Booking ID for next entry
+            GenerateBillIDFromPhone();
+
+        }
+
+
+
+        private void UpdateDateTime(object? sender, EventArgs e)
+        {
+            txtBookingDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
+            txtBookingTime.Text = DateTime.Now.ToString("HH:mm");
+        }
+
+        // Amount Calculation
+        private void UpdateAmount()
+        {
+            if (!int.TryParse(txtPersons.Text, out int persons) || persons <= 0)
+            {
+                txtRate.Text = "0";
+                txtTotalAmount.Text = "0";
+                txtPaid.Text = "0";
+                return;
+            }
+
+            var selectedSeatItem = txtSeats.SelectedItem as ComboBoxItem;
+            string seatType = selectedSeatItem?.Content?.ToString()?.ToLower() ?? "";
+            string hoursText = (txtHours.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+
+            if (string.IsNullOrEmpty(seatType) || string.IsNullOrEmpty(hoursText))
+            {
+                txtRate.Text = "0";
+                txtTotalAmount.Text = "0";
+                txtPaid.Text = "0";
+                return;
+            }
+
+            // Parse hours safely
+            var hoursParts = hoursText.Split(' ');
+            if (hoursParts.Length == 0 || !int.TryParse(hoursParts[0], out int totalHours) || totalHours <= 0)
+            {
+                txtRate.Text = "0";
+                txtTotalAmount.Text = "0";
+                txtPaid.Text = "0";
+                return;
+            }
+
+            // Get rate from the Tag property (set when loading from database)
+            decimal rate = 0;
+            if (selectedSeatItem?.Tag != null && selectedSeatItem.Tag is decimal tagRate)
+            {
+                rate = tagRate;
+            }
+            else
+            {
+                // Fallback: try to get from database
+                rate = OfflineBookingStorage.GetBookingTypeAmount(seatType);
+            }
+
+            // If still no rate found, show error
+            if (rate <= 0)
+            {
+                MessageBox.Show($"Could not find rate for '{seatType}'.\nPlease refresh booking types.",
+                    "Rate Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                txtRate.Text = "0";
+                txtTotalAmount.Text = "0";
+                txtPaid.Text = "0";
+                return;
+            }
+
+            // Set price per person (rate * hours)
+            decimal pricePerPerson = rate * totalHours;
+            txtRate.Text = pricePerPerson.ToString("0.00");
+            
+            // Recalculate total with discount and advance
+            RecalculatePricing();
+        }
+
+
+
+
+
+        // ===== BillingControl Print Event =====
+        private void BillingControl_PrintRequested(
+            string billId,
+            string customerName,
+            string phoneNo,
+            DateTime startTime,
+            int totalHours,
+            int persons,
+            double rate,
+            double paidAmount)
+        {
+            // This method is no longer needed since Dashboard counts are updated dynamically
+            // The UpdateCountsFromBookings() method in Dashboard will be called after booking is added
+            if (_dashboardInstance != null)
+            {
+                _dashboardInstance.LoadBookings();
+                _dashboardInstance.UpdateCountsFromBookings();
+            }
+        }
+
+        // Button Click Event to Generate Bill
+        private async void GenerateBill_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ValidateForm())
+            {
+                ShowAlert("warning", "Please fill all required fields before generating the bill.");
+                return;
+            }
+
+            // Show loading overlay
+            LoaderOverlay.Visibility = Visibility.Visible;
+
+            // Disable button to prevent multiple clicks during async operation
+            GenerateBillButton.IsEnabled = false;
+
+            try
+            {
+                string customerName = txtCustomer.Text.Trim();
+                string billId = txtBookingID.Text.Trim();
+                string phoneNo = txtPhone.Text.Trim();
+
+                string seatType = ((txtSeats.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "").ToLower().Trim();
+                string proofType = ((cmbIdType.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "").ToLower().Trim();
+                string proofId = txtIdNumber.Text.Trim();
+                string paymentMethod = "cash";
+
+                int totalHours = 0;
+                var selectedHours = (txtHours.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                if (!string.IsNullOrEmpty(selectedHours))
+                    int.TryParse(selectedHours.Split(' ')[0], out totalHours);
+
+                int persons = int.TryParse(txtPersons.Text, out var parsedPersons) ? parsedPersons : 0;
+                decimal rate = decimal.TryParse(txtRate.Text, out var r) ? r : 0;
+                decimal paidAmount = decimal.TryParse(txtPaid.Text, out var pa) ? pa : 0;
+
+
+                decimal totalAmount = decimal.TryParse(txtTotalAmount.Text, out var t) ? t : 0;
+                decimal balance = totalAmount - paidAmount;
+
+                string workerId = LocalStorage.GetItem("workerId");
+
+                var booking = new Booking1
+                {
+                    booking_id = billId,
+                    worker_id = workerId,
+                    guest_name = customerName,
+                    phone_number = phoneNo,
+                    number_of_persons = persons,
+                    booking_type = seatType,
+                    total_hours = totalHours,
+                    booking_date = DateTime.Now,
+                    in_time = DateTime.Now.TimeOfDay,
+                    proof_type = proofType,
+                    proof_id = proofId,
+                    price_per_person = rate,
+                    total_amount = totalAmount,
+                    paid_amount = paidAmount,
+                    balance_amount = balance,
+                    payment_method = paymentMethod,
+                    status = "active"
+                };
+
+                // Use the new online-first save method
+                await OfflineBookingStorage.SaveBookingAsync(booking, showMessages: true);
+
+                // Refresh Dashboard to update counts and show new booking
+                if (_dashboardInstance != null)
+                {
+                    _dashboardInstance.LoadBookings();
+                    _dashboardInstance.UpdateCountsFromBookings();
+                }
+
+                ClearBookingForm();
+
+                cmbIdType.SelectedIndex = 0;
+                lblIdInput.Text = "Enter ID Number";
+                txtIdNumber.Text = string.Empty;
+
+                // --- Print Bill ---
+                PrinterHelper.PrintBill(
+                    billId: billId,
+                    customerName: customerName,
+                    seatType: seatType,
+                    totalHours: totalHours,
+                    persons: persons,
+                    rate: rate,
+                    totalAmount: totalAmount,
+                    paidAmount: paidAmount,
+                    balance: balance
+                );
+            }
+            catch (Exception ex)
+            {
+                ShowAlert("error", $"Error saving booking: {ex.Message}");
+                Logger.LogError(ex);
+            }
+            finally
+            {
+                // Hide loading overlay
+                LoaderOverlay.Visibility = Visibility.Collapsed;
+                
+                // Re-enable button after operation completes
+                GenerateBillButton.IsEnabled = true;
+            }
+        }
+
+
+
+        private void ClearBookingForm()
+        {
+            // Clear all textboxes
+            txtFirstName.Text = string.Empty;
+            txtLastName.Text = string.Empty;
+            txtCustomer.Text = string.Empty;
+            txtPhone.Text = string.Empty;
+            txtPersons.Text = string.Empty;
+            txtRate.Text = string.Empty;
+            txtTotalAmount.Text = string.Empty;
+            txtPaid.Text = string.Empty;
+            txtIdNumber.Text = string.Empty;
+            txtBookingID.Text = string.Empty;
+
+            // Reset dropdowns
+            txtSeats.SelectedIndex = 0;
+            txtHours.SelectedIndex = 0;
+            cmbIdType.SelectedIndex = 0;
+
+            // Reset placeholders
+            seatsPlaceholder.Visibility = Visibility.Visible;
+            hoursPlaceholder.Visibility = Visibility.Visible;
+
+            // Reset foreground colors to grey (placeholder color)
+            SetForegroundColor(txtSeats, true);
+            SetForegroundColor(txtHours, true);
+            SetForegroundColor(cmbIdType, true);
+            SetForegroundColor(txtFirstName, true);
+            SetForegroundColor(txtLastName, true);
+            SetForegroundColor(txtPhone, true);
+            SetForegroundColor(txtPersons, true);
+            SetForegroundColor(txtIdNumber, true);
+
+            // Reset label text
+            lblIdInput.Text = "Enter ID Number";
+
+            // Clear error labels
+            errCustomer.Visibility = Visibility.Collapsed;
+            errPhone.Visibility = Visibility.Collapsed;
+            errPersons.Visibility = Visibility.Collapsed;
+            errSeats.Visibility = Visibility.Collapsed;
+            errHours.Visibility = Visibility.Collapsed;
+            errPaid.Visibility = Visibility.Collapsed;
+            errIdType.Visibility = Visibility.Collapsed;
+            errIdNumber.Visibility = Visibility.Collapsed;
+
+            // Generate a fresh new Bill ID
+            GenerateBillIDFromPhone();
+
+            // Optionally, move focus to the first field
+            txtFirstName.Focus();
+        }
+
+
+        private bool ValidateForm()
+        {
+            bool isValid = true;
+
+            // Reset all errors first
+            errCustomer.Visibility = Visibility.Collapsed;
+            errPhone.Visibility = Visibility.Collapsed;
+            errPersons.Visibility = Visibility.Collapsed;
+            errSeats.Visibility = Visibility.Collapsed;
+            errHours.Visibility = Visibility.Collapsed;
+            errPaid.Visibility = Visibility.Collapsed;
+            errIdType.Visibility = Visibility.Collapsed;
+            errIdNumber.Visibility = Visibility.Collapsed;
+
+            // Validate Name
+            if (string.IsNullOrWhiteSpace(txtFirstName.Text))
+            {
+                errCustomer.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate Phone
+            if (string.IsNullOrWhiteSpace(txtPhone.Text) || txtPhone.Text.Length != PHONE_NUMBER_LENGTH || !_regexNumeric.IsMatch(txtPhone.Text))
+            {
+                errPhone.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate Persons
+            if (string.IsNullOrWhiteSpace(txtPersons.Text) || !int.TryParse(txtPersons.Text, out _))
+            {
+                errPersons.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate Seat Type
+            if (txtSeats.SelectedItem is ComboBoxItem seatItem)
+            {
+                if (seatItem.Content.ToString() == "Select")
+                {
+                    errSeats.Visibility = Visibility.Visible;
+                    isValid = false;
+                }
+            }
+            else
+            {
+                errSeats.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate Hours
+            if (txtHours.SelectedItem is ComboBoxItem hourItem)
+            {
+                if (hourItem.Content.ToString() == "Select hours")
+                {
+                    errHours.Visibility = Visibility.Visible;
+                    isValid = false;
+                }
+            }
+            else
+            {
+                errHours.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate Discount (must not exceed total)
+            if (!string.IsNullOrWhiteSpace(txtDiscount.Text))
+            {
+                if (decimal.TryParse(txtDiscount.Text, out decimal discount) && decimal.TryParse(txtTotalAmount.Text, out decimal total))
+                {
+                    if (discount > total + discount) // Check against base total before discount
+                    {
+                        MessageBox.Show("Discount cannot exceed the total amount.", 
+                            "Invalid Discount", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        isValid = false;
+                    }
+                }
+            }
+
+            // Validate Advance Amount (only if visible and enabled)
+            if (pnlAdvanceAmount.Visibility == Visibility.Visible)
+            {
+                if (string.IsNullOrWhiteSpace(txtPaid.Text) || !decimal.TryParse(txtPaid.Text, out decimal paid) || paid < 0)
+                {
+                    errPaid.Visibility = Visibility.Visible;
+                    isValid = false;
+                }
+                else if (decimal.TryParse(txtTotalAmount.Text, out decimal total) && paid > total)
+                {
+                    MessageBox.Show("Advance amount cannot exceed the total amount after discount.", 
+                        "Invalid Advance Amount", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    errPaid.Visibility = Visibility.Visible;
+                    isValid = false;
+                }
+            }
+
+            // Validate ID Type
+            if (cmbIdType.SelectedItem is ComboBoxItem idItem)
+            {
+                if (idItem.Content.ToString() == "Select ID")
+                {
+                    errIdType.Visibility = Visibility.Visible;
+                    isValid = false;
+                }
+            }
+            else
+            {
+                errIdType.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            // Validate ID Number
+            if (string.IsNullOrWhiteSpace(txtIdNumber.Text))
+            {
+                errIdNumber.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Cancel Button Click Event
+        private void Cancel_Click(object sender, RoutedEventArgs e)
+        {
+            // Clear all input fields
+            txtFirstName.Text = string.Empty;
+            txtLastName.Text = string.Empty;
+            txtCustomer.Text = string.Empty;
+            txtPhone.Text = string.Empty;
+            txtPersons.Text = string.Empty;
+            txtBookingID.Text = string.Empty;
+            txtRate.Text = string.Empty;
+            txtTotalAmount.Text = string.Empty;
+            txtDiscount.Text = string.Empty;
+            txtPaid.Text = string.Empty;
+            txtIdNumber.Text = string.Empty;
+
+            // Reset ComboBoxes to placeholder
+            txtSeats.SelectedIndex = 0;
+            txtHours.SelectedIndex = 0;
+            cmbIdType.SelectedIndex = 0;
+            
+            // Disable ID Number field until ID Type is selected
+            txtIdNumber.IsEnabled = false;
+
+            // Hide all error messages
+            errCustomer.Visibility = Visibility.Collapsed;
+            errPhone.Visibility = Visibility.Collapsed;
+            errPersons.Visibility = Visibility.Collapsed;
+            errSeats.Visibility = Visibility.Collapsed;
+            errHours.Visibility = Visibility.Collapsed;
+            errPaid.Visibility = Visibility.Collapsed;
+            errIdType.Visibility = Visibility.Collapsed;
+            errIdNumber.Visibility = Visibility.Collapsed;
+
+            // Focus on first field
+            txtFirstName.Focus();
+        }
+
+
+        // ===== Input Validations =====
+        private void UppercaseOnly_PreviewTextInput(object sender, TextCompositionEventArgs e)
+            => e.Handled = !_regex.IsMatch(e.Text);
+
+        private void NumbersOnly_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = !_regexNumeric.IsMatch(e.Text);
+
+            if (!e.Handled)
+            {
+                if (sender is TextBox tb && tb.Text.Length >= tb.MaxLength && tb.MaxLength > 0)
+                    e.Handled = true;
+            }
+        }
+
+
+
+        private void Alphanumeric_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = !_regexAlphanumeric.IsMatch(e.Text);
+
+            if (!e.Handled)
+            {
+                if (sender is TextBox tb && tb.Text.Length >= tb.MaxLength && tb.MaxLength > 0)
+                    e.Handled = true;
+            }
+        }
+
+
+
+
+        private void UppercaseOnly_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (e.DataObject.GetDataPresent(typeof(string)))
+            {
+                string text = (string)e.DataObject.GetData(typeof(string));
+                if (!_regex.IsMatch(text)) e.CancelCommand();
+            }
+            else e.CancelCommand();
+        }
+
+        private void NumbersOnly_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (e.DataObject.GetDataPresent(typeof(string)))
+            {
+                string text = (string)e.DataObject.GetData(typeof(string));
+                if (!_regexNumeric.IsMatch(text)) e.CancelCommand();
+            }
+            else e.CancelCommand();
+        }
+
+        // ===== Booking ID =====
+        private void GenerateBillIDFromPhone()
+        {
+            string phone = txtPhone.Text.Trim();
+
+            // Only generate if phone number looks valid
+            if (string.IsNullOrWhiteSpace(phone) || phone.Length < 5)
+                return;
+
+            string datePart = DateTime.Now.ToString("ddMMyyyy");
+            string timePart = DateTime.Now.ToString("HHmm");
+            string billID = $"{datePart}{phone}{timePart}";  // ✅ no underscores
+
+            txtBookingID.Text = billID;
+        }
+
+
+
+        private void txtTotalAmount_TextChanged(object sender, TextChangedEventArgs e) { }
+
+        private void Control_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Allow all typing — only handle Enter key for navigation
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+
+                // Define the sequential order of controls
+                var controlOrder = new Control[]
+                {
+                    txtFirstName, txtLastName, txtPhone, txtPersons, txtSeats, txtHours, cmbIdType, txtIdNumber
+                };
+
+                // Find current control index
+                int currentIndex = Array.IndexOf(controlOrder, sender);
+                
+                if (currentIndex == -1)
+                    return;
+
+                // Special action for txtPhone
+                if (sender == txtPhone)
+                {
+                    GenerateBillIDFromPhone();
+                }
+
+                // Validate current control (except txtLastName which is optional)
+                var currentControl = controlOrder[currentIndex];
+                if (currentControl != txtLastName && !ValidateControl(currentControl))
+                {
+                    // Stay on current control if validation fails
+                    currentControl.Focus();
+                    return;
+                }
+
+                // Move to next control
+                if (currentIndex + 1 < controlOrder.Length)
+                {
+                    controlOrder[currentIndex + 1].Focus();
+                }
+                else
+                {
+                    // We're at the last field, check if all required fields are filled
+                    if (AreAllRequiredFieldsFilled())
+                    {
+                        GenerateBillButton.Focus();
+                    }
+                    else
+                    {
+                        ShowAlert("warning", "Please fill in all required fields before continuing.");
+                    }
+                }
+            }
+        }
+
+        private bool ValidateControl(object control)
+        {
+            switch (control)
+            {
+                case TextBox tb when tb == txtFirstName:
+                    if (string.IsNullOrWhiteSpace(tb.Text))
+                    {
+                        errCustomer.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errCustomer.Visibility = Visibility.Collapsed; }
+                    break;
+
+                case TextBox tb when tb == txtPhone:
+                    if (string.IsNullOrWhiteSpace(tb.Text))
+                    {
+                        errPhone.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errPhone.Visibility = Visibility.Collapsed; }
+                    break;
+
+                case TextBox tb when tb == txtPersons:
+                    if (string.IsNullOrWhiteSpace(tb.Text))
+                    {
+                        errPersons.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errPersons.Visibility = Visibility.Collapsed; }
+                    break;
+
+                case ComboBox cb when cb == txtSeats:
+                    if (cb.SelectedIndex <= 0)
+                    {
+                        errSeats.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errSeats.Visibility = Visibility.Collapsed; }
+                    break;
+
+                case ComboBox cb when cb == txtHours:
+                    if (cb.SelectedIndex <= 0)
+                    {
+                        errHours.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errHours.Visibility = Visibility.Collapsed; }
+                    break;
+
+                // Skip txtPaid validation
+
+                case ComboBox cb when cb == cmbIdType:
+                    if (cb.SelectedIndex <= 0)
+                    {
+                        errIdType.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errIdType.Visibility = Visibility.Collapsed; }
+                    break;
+
+                case TextBox tb when tb == txtIdNumber:
+                    if (string.IsNullOrWhiteSpace(tb.Text))
+                    {
+                        errIdNumber.Visibility = Visibility.Visible;
+                        return false;
+                    }
+                    else { errIdNumber.Visibility = Visibility.Collapsed; }
+                    break;
+            }
+            return true;
+        }
+
+        private bool AreAllRequiredFieldsFilled()
+        {
+            var requiredControls = new Control[]
+            {
+        txtFirstName, txtPhone, txtPersons, txtSeats, txtHours, cmbIdType, txtIdNumber
+            };
+
+            foreach (var control in requiredControls)
+            {
+                // TextBox check
+                if (control is TextBox tb)
+                {
+                    if (string.IsNullOrWhiteSpace(tb.Text))
+                        return false;
+                }
+                // ComboBox check
+                else if (control is ComboBox cb)
+                {
+                    if (cb.SelectedIndex <= 0)
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+
+        private void UserControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Load booking types from local database
+            LoadBookingTypesFromDatabase();
+            
+            // Load settings and configure advance payment visibility
+            LoadSettingsAndConfigureAdvancePayment();
+            
+            // Initialize the hours dropdown to show placeholder
+            if (txtHours.SelectedIndex == -1)
+            {
+                txtHours.SelectedIndex = 0; // Select placeholder
+            }
+            
+            // Initialize dropdown foreground colors to grey (placeholder state)
+            SetForegroundColor(txtHours, true);
+            SetForegroundColor(cmbIdType, true);
+            
+            // Initialize TextBox foreground colors to grey (placeholder state)
+            SetForegroundColor(txtFirstName, true);
+            SetForegroundColor(txtLastName, true);
+            SetForegroundColor(txtPhone, true);
+            SetForegroundColor(txtPersons, true);
+            SetForegroundColor(txtIdNumber, true);
+        }
+
+        /// <summary>
+        /// Handles mouse wheel scrolling for the entire UserControl
+        /// </summary>
+        private void UserControl_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // Check if any ComboBox dropdown is open
+            if (IsAnyComboBoxOpen())
+            {
+                // Don't interfere with dropdown scrolling
+                return;
+            }
+
+            // Manually scroll the FormScrollViewer
+            if (FormScrollViewer != null)
+            {
+                if (e.Delta > 0)
+                {
+                    // Scroll up
+                    FormScrollViewer.ScrollToVerticalOffset(FormScrollViewer.VerticalOffset - 50);
+                }
+                else
+                {
+                    // Scroll down
+                    FormScrollViewer.ScrollToVerticalOffset(FormScrollViewer.VerticalOffset + 50);
+                }
+                
+                // Mark event as handled to prevent default behavior
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Checks if any ComboBox in the form has its dropdown open
+        /// </summary>
+        private bool IsAnyComboBoxOpen()
+        {
+            return (txtSeats?.IsDropDownOpen == true) || 
+                   (txtHours?.IsDropDownOpen == true) || 
+                   (cmbIdType?.IsDropDownOpen == true);
+        }
+
+        /// <summary>
+        /// Load booking types from local database and populate the dropdown
+        /// </summary>
+        private void LoadBookingTypesFromDatabase()
+        {
+            try
+            {
+                // Get booking types from database
+                var bookingTypes = OfflineBookingStorage.GetBookingTypes();
+
+                // Clear existing items except the placeholder
+                txtSeats.Items.Clear();
+                
+                // Re-add placeholder
+                var placeholder = new ComboBoxItem
+                {
+                    Content = "Select",
+                    IsEnabled = false,
+                    IsSelected = true,
+                    Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                };
+                placeholder.SetValue(System.Windows.Controls.Primitives.Selector.IsSelectedProperty, true);
+                txtSeats.Items.Add(placeholder);
+
+                // Add booking types from database
+                if (bookingTypes.Count > 0)
+                {
+                    foreach (var type in bookingTypes)
+                    {
+                        var item = new ComboBoxItem
+                        {
+                            Content = type.Type,
+                            Tag = type.Amount, // Store amount in Tag for easy access
+                            Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                        };
+                        txtSeats.Items.Add(item);
+                    }
+
+                    Logger.Log($"Loaded {bookingTypes.Count} booking types from database");
+                }
+                else
+                {
+                    // No booking types found - show warning
+                    MessageBox.Show("No booking types found in database.",
+                        "No Booking Types", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    
+                    Logger.Log("No booking types found in database");
+                }
+
+                // Reset selection to placeholder
+                txtSeats.SelectedIndex = 0;
+                seatsPlaceholder.Visibility = Visibility.Visible;
+                
+                // Set initial foreground color to grey (placeholder color)
+                SetForegroundColor(txtSeats, true);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                MessageBox.Show($"Error loading booking types",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Load settings and configure advance payment visibility
+        /// </summary>
+        private void LoadSettingsAndConfigureAdvancePayment()
+        {
+            try
+            {
+                var settings = OfflineBookingStorage.GetSettings();
+                
+                if (settings != null)
+                {
+                    // Show/hide advance payment field based on settings
+                    if (settings.AdvancePaymentEnabled)
+                    {
+                        pnlAdvanceAmount.Visibility = Visibility.Visible;
+                        Logger.Log($"Advance payment enabled with default percentage: {settings.DefaultAdvancePercentage}%");
+                    }
+                    else
+                    {
+                        pnlAdvanceAmount.Visibility = Visibility.Collapsed;
+                        Logger.Log("Advance payment disabled");
+                    }
+                }
+                else
+                {
+                    // No settings found, hide advance payment
+                    pnlAdvanceAmount.Visibility = Visibility.Collapsed;
+                    Logger.Log("No settings found, hiding advance payment field");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                pnlAdvanceAmount.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Handle discount text changed - recalculate total and advance
+        /// </summary>
+        private void txtDiscount_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            RecalculatePricing();
+        }
+
+        /// <summary>
+        /// Recalculate total amount after discount and advance payment
+        /// </summary>
+        private void RecalculatePricing()
+        {
+            try
+            {
+                // Get price per person
+                if (!decimal.TryParse(txtRate.Text, out decimal pricePerPerson) || pricePerPerson <= 0)
+                {
+                    return; // No valid price yet
+                }
+
+                // Get number of persons
+                if (!int.TryParse(txtPersons.Text, out int persons) || persons <= 0)
+                {
+                    return; // No valid persons count yet
+                }
+
+                // Calculate base total
+                decimal baseTotal = pricePerPerson * persons;
+
+                // Apply discount with validation
+                decimal discount = 0;
+                if (decimal.TryParse(txtDiscount.Text, out decimal discountAmount) && discountAmount > 0)
+                {
+                    // Discount cannot exceed base total
+                    if (discountAmount > baseTotal)
+                    {
+                        discount = baseTotal;
+                        txtDiscount.Text = baseTotal.ToString("0.00");
+                        
+                        MessageBox.Show($"Discount cannot exceed the total amount of ₹{baseTotal:0.00}.\n\nDiscount has been adjusted to ₹{baseTotal:0.00}.",
+                            "Discount Limited", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        discount = discountAmount;
+                    }
+                }
+
+                // Calculate final total after discount
+                decimal finalTotal = baseTotal - discount;
+                txtTotalAmount.Text = finalTotal.ToString("0.00");
+
+                // Calculate advance payment if enabled
+                var settings = OfflineBookingStorage.GetSettings();
+                if (settings != null && settings.AdvancePaymentEnabled && finalTotal > 0)
+                {
+                    decimal advancePercentage = settings.DefaultAdvancePercentage;
+                    decimal calculatedAdvance = (finalTotal * advancePercentage) / 100;
+                    
+                    // Advance amount cannot exceed final total
+                    decimal advanceAmount = Math.Min(calculatedAdvance, finalTotal);
+                    
+                    txtPaid.Text = advanceAmount.ToString("0.00");
+                    
+                    if (calculatedAdvance > finalTotal)
+                    {
+                        Logger.Log($"Advance amount capped at total: {advanceAmount} (calculated: {calculatedAdvance}, percentage: {advancePercentage}%)");
+                    }
+                    else
+                    {
+                        Logger.Log($"Calculated advance: {advanceAmount} ({advancePercentage}% of {finalTotal})");
+                    }
+                }
+                else if (pnlAdvanceAmount.Visibility == Visibility.Visible)
+                {
+                    // If advance is visible but final total is 0, set advance to 0
+                    txtPaid.Text = "0.00";
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+            }
+        }
+    }
+}
