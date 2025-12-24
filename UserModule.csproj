@@ -17,6 +17,10 @@
     <Description>Railway Ticket Booking and Management System</Description>
     <Copyright>Copyright © 2025</Copyright>
     
+    <!-- Disable auto-generation of assembly attributes to prevent duplicates -->
+    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+    
     <!-- Release Configuration -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
