@@ -20,6 +20,7 @@ public static class OfflineBookingStorage
         "Railax");
     private static readonly string DbPath = Path.Combine(AppDataFolder, "offline_bookings.db");
     private const string CreateBookingApiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/create";
+    private const string GetCompletedBookingsApiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/completed-today";
 
     static OfflineBookingStorage()
     {
@@ -656,6 +657,112 @@ public static class OfflineBookingStorage
         }
 
         return bookings;
+    }
+
+    // Sync completed bookings from server for today and current worker
+    public static async Task<string> SyncCompletedBookingsFromServerAsync(string workerId)
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            // Get admin ID from LocalStorage
+            string adminId = LocalStorage.GetItem("adminId") ?? "";
+
+            // Prepare POST request with JSON body (server uses CURRENT_DATE)
+            var requestData = new
+            {
+                admin_id = adminId,
+                worker_id = workerId
+            };
+
+            var json = JsonConvert.SerializeObject(requestData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync(GetCompletedBookingsApiUrl, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return $"❌ Server error: {response.StatusCode}";
+            }
+
+            var responseJson = await response.Content.ReadAsStringAsync();
+            var result = JsonConvert.DeserializeObject<CompletedBookingsResponse>(responseJson);
+
+            if (result?.completedBookingIds == null || result.completedBookingIds.Length == 0)
+            {
+                return "✅ All bookings are up to date";
+            }
+
+            // Update local database
+            int updatedCount = 0;
+            using var connection = new SqliteConnection($"Data Source={DbPath}");
+            connection.Open();
+
+            foreach (var booking in result.completedBookingIds)
+            {
+                // Check if booking exists
+                string checkQuery = "SELECT status, out_time FROM Bookings WHERE booking_id = @id";
+                using var checkCmd = new SqliteCommand(checkQuery, connection);
+                checkCmd.Parameters.AddWithValue("@id", booking.booking_id);
+                
+                using var reader = checkCmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    string currentStatus = reader["status"]?.ToString() ?? "";
+                    string currentOutTime = reader["out_time"]?.ToString() ?? "";
+                    reader.Close();
+
+                    // Update if status is active OR if out_time is different
+                    if (currentStatus.ToLower() == "active" || currentOutTime != booking.out_time)
+                    {
+                        string updateQuery = @"
+                            UPDATE Bookings 
+                            SET status = 'completed', 
+                                out_time = @out_time,
+                                updated_at = @updated_at 
+                            WHERE booking_id = @id";
+
+                        using var updateCmd = new SqliteCommand(updateQuery, connection);
+                        updateCmd.Parameters.AddWithValue("@id", booking.booking_id);
+                        updateCmd.Parameters.AddWithValue("@out_time", booking.out_time ?? "00:00:00");
+                        updateCmd.Parameters.AddWithValue("@updated_at", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                        updateCmd.ExecuteNonQuery();
+                        updatedCount++;
+                    }
+                }
+            }
+
+            return updatedCount > 0 
+                ? $"✅ Synced! {updatedCount} booking(s) marked as completed" 
+                : "✅ All bookings are up to date";
+        }
+        catch (HttpRequestException)
+        {
+            return "❌ No internet connection";
+        }
+        catch (TaskCanceledException)
+        {
+            return "❌ Request timeout. Please try again";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex);
+            return $"❌ Sync failed: {ex.Message}";
+        }
+    }
+
+    // Response model for completed bookings API
+    private class CompletedBookingsResponse
+    {
+        public CompletedBookingItem[] completedBookingIds { get; set; }
+    }
+
+    private class CompletedBookingItem
+    {
+        public string booking_id { get; set; }
+        public string out_time { get; set; }
     }
 
     public static Booking1? GetBookingById(string bookingId)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.NetworkInformation;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -11,6 +12,7 @@ namespace UserModule
         private bool _isSyncInProgress;
         private System.Timers.Timer? _syncTimer;
         private bool _lastKnownInternetStatus = false;
+        private static Mutex? _mutex = null;
 
         public App()
         {
@@ -44,6 +46,19 @@ namespace UserModule
 
         protected override async void OnStartup(StartupEventArgs e)
         {
+            // Single instance check
+            const string appName = "RailaxBookingApp";
+            bool createdNew;
+
+            _mutex = new Mutex(true, appName, out createdNew);
+
+            if (!createdNew)
+            {
+                // Application is already running - silently exit
+                Current.Shutdown();
+                return;
+            }
+
             try
             {
                 base.OnStartup(e);

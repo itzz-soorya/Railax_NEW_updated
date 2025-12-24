@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
 using UserModule.Models;
@@ -644,6 +646,74 @@ namespace UserModule
                 Logger.LogError(ex); // ✅ Added Logger
                 // MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Disable button during sync
+                RefreshButton.IsEnabled = false;
+                RefreshButton.Opacity = 0.5;
+
+                // Get current worker ID
+                string workerId = LocalStorage.GetItem("workerId");
+                if (string.IsNullOrEmpty(workerId))
+                {
+                    MessageBox.Show("Worker ID not found. Please log in again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Sync with server
+                string result = await OfflineBookingStorage.SyncCompletedBookingsFromServerAsync(workerId);
+
+                // Show result
+                MessageBox.Show(result, "Sync Status", MessageBoxButton.OK, 
+                    result.Contains("✅") ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+                // Reload bookings if sync was successful
+                if (result.Contains("✅"))
+                {
+                    LoadBookings();
+                    UpdateCountsFromBookings();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                MessageBox.Show($"Sync error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // Re-enable button
+                RefreshButton.IsEnabled = true;
+                RefreshButton.Opacity = 1.0;
+            }
+        }
+    }
+
+    // Converter to show only last 6 digits of booking ID
+    public class BookingIdConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value == null)
+                return string.Empty;
+
+            string bookingId = value.ToString();
+            
+            // Return last 6 digits if the ID is longer than 6 characters
+            if (bookingId.Length > 6)
+            {
+                return bookingId.Substring(bookingId.Length - 6);
+            }
+            
+            return bookingId;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }

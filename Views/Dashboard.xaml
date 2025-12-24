@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:local="clr-namespace:UserModule"
              mc:Ignorable="d"
              Background="#F7F7F7"
              HorizontalAlignment="Stretch" 
@@ -12,6 +13,8 @@
              MinWidth="800">
 
     <UserControl.Resources>
+        <!-- Booking ID Converter -->
+        <local:BookingIdConverter x:Key="BookingIdConverter"/>
         <!-- Header Button Style -->
         <Style TargetType="Button" x:Key="HeaderButtonStyle">
             <Setter Property="Foreground" Value="White"/>
@@ -179,9 +182,40 @@
 
                     <!-- Action Buttons - Right Aligned -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <StackPanel>
-                            <!-- Scan button moved to Header.xaml -->
-                         </StackPanel>
+                        <!-- Refresh Button -->
+                        <Button x:Name="RefreshButton" 
+                                Width="40" 
+                                Height="40" 
+                                Background="White" 
+                                BorderThickness="0" 
+                                Margin="0,0,12,0" 
+                                Cursor="Hand"
+                                Click="RefreshButton_Click"
+                                ToolTip="Sync with server">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border" 
+                                                        Background="{TemplateBinding Background}" 
+                                                        CornerRadius="6">
+                                                    <TextBlock Text="🔄" 
+                                                               FontSize="20" 
+                                                               HorizontalAlignment="Center" 
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#F0F0F0"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
 
                         <!-- Totals (read-only) -->
                         <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0">
@@ -403,22 +437,15 @@
                                 <Style TargetType="DataGridCell">
                                     <Setter Property="BorderThickness" Value="0"/>
                                     <Setter Property="Padding" Value="8,4"/>
-                                    <Setter Property="Background" Value="White"/>
+                                    <Setter Property="Background" Value="Transparent"/>
                                     <Setter Property="HorizontalAlignment" Value="Stretch"/>
                                     <Setter Property="VerticalAlignment" Value="Center"/>
                                     <Style.Triggers>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="#E6F3FF"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                             <Setter Property="Foreground" Value="Black"/>
-                                            <Setter Property="BorderBrush" Value="#4A90E2"/>
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
                                         </Trigger>
-                                        <MultiTrigger>
-                                            <MultiTrigger.Conditions>
-                                                <Condition Property="IsSelected" Value="False"/>
-                                                <Condition Property="IsMouseOver" Value="True"/>
-                                            </MultiTrigger.Conditions>
-                                            <Setter Property="Background" Value="#F5F5F5"/>
-                                        </MultiTrigger>
                                     </Style.Triggers>
                                 </Style>
 
@@ -465,11 +492,13 @@
                                     </DataGridTemplateColumn.Header>
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding booking_id}" FontSize="12"
+                                            <TextBlock Text="{Binding booking_id, Converter={StaticResource BookingIdConverter}}" 
+                                                       FontSize="12"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" 
-                                                       TextWrapping="Wrap"/>
+                                                       TextWrapping="Wrap"
+                                                       ToolTip="{Binding booking_id}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
