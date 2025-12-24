@@ -106,7 +106,7 @@ namespace UserModule
 
                 if (allBookings != null && allBookings.Any())
                 {
-                    // Safely sum amounts (handle possible nulls)
+                    // Sum all booking amounts from the local database
                     foreach (var b in allBookings)
                     {
                         try

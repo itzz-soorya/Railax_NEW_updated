@@ -2,8 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     
-    <Border Background="White" CornerRadius="10" BorderBrush="#DDD" BorderThickness="2" Padding="30">
-        <Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalOnly"
+                  CanContentScroll="True">
+        <Border Background="White" CornerRadius="10" BorderBrush="#DDD" BorderThickness="2" Padding="30" Margin="0,0,0,50">
+            <Grid>
             <!-- Scan Section -->
             <StackPanel x:Name="ScanSection">
                 <TextBlock Text="Complete Billing - Scan Booking ID" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Foreground="#232323" Margin="0,0,0,20"/>
@@ -111,6 +115,7 @@
                         <ComboBoxItem Content="Card"/>
                         <ComboBoxItem Content="UPI"/>
                         <ComboBoxItem Content="Net Banking"/>
+                        <ComboBoxItem Content="Others"/>
                     </ComboBox>
                     <TextBlock x:Name="errPaymentMethod" Text="* Please select a payment method" 
                                Foreground="Red" FontSize="12" Visibility="Collapsed" Margin="5,5,0,0"/>
@@ -129,4 +134,5 @@
             </StackPanel>
         </Grid>
     </Border>
+    </ScrollViewer>
 </UserControl>

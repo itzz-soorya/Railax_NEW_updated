@@ -40,9 +40,8 @@
     <ScrollViewer x:Name="ScanBillingScrollViewer"
                   VerticalScrollBarVisibility="Auto" 
                   HorizontalScrollBarVisibility="Disabled"
-                  PanningMode="VerticalFirst"
-                  CanContentScroll="False"
-                  IsDeferredScrollingEnabled="False">
+                  PanningMode="VerticalOnly"
+                  CanContentScroll="True">
         
         <Border Background="White" CornerRadius="10" BorderBrush="#DDD" BorderThickness="1" Margin="0,0,0,50">
             <Grid Margin="30">

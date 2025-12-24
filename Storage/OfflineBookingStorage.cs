@@ -100,6 +100,7 @@ public static class OfflineBookingStorage
                     // Column doesn't exist, add it
                     string alterTable1 = "ALTER TABLE Settings ADD COLUMN advance_payment_enabled INTEGER DEFAULT 0";
                     using (var alterCmd = new SqliteCommand(alterTable1, connection))
+                    
                     {
                         alterCmd.ExecuteNonQuery();
                         Logger.Log("Added column 'advance_payment_enabled' to Settings table");
@@ -622,7 +623,8 @@ public static class OfflineBookingStorage
         connection.Open();
 
         string query = @"
-        SELECT booking_id, guest_name, phone_number, booking_type, in_time, out_time, status, created_at
+        SELECT booking_id, guest_name, phone_number, booking_type, in_time, out_time, status, created_at,
+               total_amount, paid_amount, balance_amount, worker_id, number_of_persons, total_hours, price_per_person
         FROM Bookings
         ORDER BY created_at DESC;";
 
@@ -634,9 +636,16 @@ public static class OfflineBookingStorage
             bookings.Add(new Booking1
             {
                 booking_id = reader["booking_id"]?.ToString(),
+                worker_id = reader["worker_id"]?.ToString(),
                 guest_name = reader["guest_name"]?.ToString(),
                 phone_number = reader["phone_number"]?.ToString(),
                 booking_type = reader["booking_type"]?.ToString(),
+                number_of_persons = Convert.ToInt32(reader["number_of_persons"] ?? 0),
+                total_hours = Convert.ToInt32(reader["total_hours"] ?? 0),
+                price_per_person = Convert.ToDecimal(reader["price_per_person"] ?? 0),
+                total_amount = Convert.ToDecimal(reader["total_amount"] ?? 0),
+                paid_amount = Convert.ToDecimal(reader["paid_amount"] ?? 0),
+                balance_amount = Convert.ToDecimal(reader["balance_amount"] ?? 0),
                 in_time = TimeSpan.TryParse(reader["in_time"]?.ToString(), out var inT) ? inT : TimeSpan.Zero,
                 out_time = TimeSpan.TryParse(reader["out_time"]?.ToString(), out var outT) ? outT : TimeSpan.Zero,
                 status = reader["status"]?.ToString(),
