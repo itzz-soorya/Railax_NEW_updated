@@ -57,6 +57,8 @@
     <None Remove="assests\Search.png" />
     <None Remove="assests\usericon.png" />
     <None Remove="assests\Vector.png" />
+    <None Remove="Views\Dashboard.png" />
+    <None Remove="Views\NewBooking.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -119,6 +121,8 @@
     <Resource Include="assests\Vector.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
+    <Resource Include="Views\Dashboard.png" />
+    <Resource Include="Views\NewBooking.png" />
   </ItemGroup>
 
   <ItemGroup>

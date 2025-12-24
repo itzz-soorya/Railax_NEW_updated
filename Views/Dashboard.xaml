@@ -131,12 +131,18 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" MinWidth="800" MinHeight="600">
-        <!-- Main Content -->
-        <Grid Margin="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+    <!-- Main Grid with proper row definitions for responsive layout -->
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Section (Fixed) -->
+        <Grid Grid.Row="0" Margin="20,20,20,10" HorizontalAlignment="Stretch">
             <!-- Greeting Box -->
             <Border Background="#232323" CornerRadius="8" Padding="20"
-                    VerticalAlignment="Top" HorizontalAlignment="Stretch" MinHeight="80" MinWidth="300" >
+                    VerticalAlignment="Top" HorizontalAlignment="Stretch" MinHeight="80">
                 <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -173,101 +179,83 @@
 
                     <!-- Action Buttons - Right Aligned -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <!-- Internet Status Indicator -->
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0" ToolTip="Internet Connection Status">
-                            <Ellipse x:Name="InternetStatusDot" 
-                                     Width="12" Height="12" 
-                                     Fill="Gray"
-                                     Stroke="White"
-                                     StrokeThickness="1"/>
-                            <TextBlock x:Name="InternetStatusText" 
-                                       Text="Checking..." 
-                                       Foreground="White" 
-                                       FontSize="11" 
-                                       Margin="6,0,0,0"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                        
                         <StackPanel>
+                            <!-- Scan button moved to Header.xaml -->
+                         </StackPanel>
 
-                            <!-- Container for dynamic content -->
+                        <!-- Totals (read-only) -->
+                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0">
+                            <TextBox x:Name="TotalBookingsTextBox"
+                                     Text="Total Bookings: 0"
+                                     IsReadOnly="True"
+                                     Background="#333333"
+                                     Foreground="White"
+                                     BorderThickness="0"
+                                     Padding="8"
+                                     FontSize="13"
+                                     Width="180"
+                                     Margin="0,0,0,6"/>
 
-                            <!-- Container for dynamic content -->
-
-                            <!-- Container for dynamic content -->
-                            <Button x:Name="ScanButton"
-                          Style="{StaticResource ActionButtonStyle}"
-                          Background="Black" Margin="0,0,0,0"
-                          Height="37" MinWidth="140"
-                          Click="ScanButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <Image Source="/Assets/Images/Scan.png" Width="35" Height="35" Margin="0,0,10,0"/>
-                                    <TextBlock Text="Scan" Margin="0,6,8,0" FontSize="16" TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </Button>
+                            <TextBox x:Name="TotalAmountTextBox"
+                                     Text="Total Amount: ₹0.00"
+                                     IsReadOnly="True"
+                                     Background="#333333"
+                                     Foreground="White"
+                                     BorderThickness="0"
+                                     Padding="8"
+                                     FontSize="13"
+                                     Width="180"/>
                         </StackPanel>
 
+                     </StackPanel>
+                 </Grid>
+             </Border>
+         </Grid>
 
-                        <!-- Placeholder where UserControl will load -->
-                        <ContentControl x:Name="MainContentArea"/>
-
-                        <Button x:Name="AddBookingButton"
-                                Style="{StaticResource ActionButtonStyle}"
-                                Background="#E8F2FF" Foreground="#1E71FB"
-                                MinWidth="120" Click="AddBookingButton_Click">
-                            <TextBlock Text="+ Add Booking" FontSize="14" TextTrimming="CharacterEllipsis" />
-                        </Button>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
+        <!-- Data Section (Scrollable) -->
+        <Grid Grid.Row="1" Margin="20,10,20,20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <!-- Data Card -->
-            <Border Background="White" CornerRadius="10" Margin="0,110,0,0" Padding="20"
-        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-        MinHeight="400" MinWidth="400">
+            <Border Background="White" CornerRadius="10" Padding="20"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                 <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Search & Filters Row -->
-                    <Grid Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Top" MinWidth="300">
+                    <!-- Search & Filters Row (Fixed) -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <!-- Search Bar expands -->
-                            <ColumnDefinition Width="Auto" />
-                            <!-- Filter Buttons -->
-                            <ColumnDefinition Width="Auto" />
-                            <!-- Seat Count fits content -->
-                            <ColumnDefinition Width="2*" />
-                            <!-- Toggle Buttons expand -->
+                            <ColumnDefinition Width="2*" MinWidth="200"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="2*" MinWidth="200"/>
                         </Grid.ColumnDefinitions>
 
                         <!-- Search Bar -->
                         <Border Grid.Column="0"
-                    Background="White"
-                    CornerRadius="8"
-                    BorderBrush="#CCC"
-                    BorderThickness="1"
-                    MinHeight="36"
-                    HorizontalAlignment="Stretch">
+                                Background="White"
+                                CornerRadius="8"
+                                BorderBrush="#CCC"
+                                BorderThickness="1"
+                                MinHeight="36"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,10,0">
                             <Grid>
                                 <TextBox x:Name="SearchTextBox"
-                             VerticalContentAlignment="Center"
-                             Padding="36,0,12,0"
-                             FontSize="14"
-                             BorderThickness="0"
-                             Background="Transparent"
-                             MinWidth="150"
-                             Text="" TextChanged="SearchTextBox_TextChanged"/>
+                                         VerticalContentAlignment="Center"
+                                         Padding="36,0,12,0"
+                                         FontSize="14"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Text="" TextChanged="SearchTextBox_TextChanged"/>
                                 <Image Source="/Assets/Images/Search.png"
-                           Width="16"
-                           Height="16"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Left"
-                           Margin="12,0,0,0"
-                           IsHitTestVisible="False"/>
+                                       Width="16"
+                                       Height="16"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left"
+                                       Margin="12,0,0,0"
+                                       IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
 
@@ -370,8 +358,8 @@
                             </Button>
                         </StackPanel>
 
-                        <!-- Status and Type Counts - Will be populated dynamically -->
-                        <StackPanel x:Name="CountsPanel" Grid.Column="2" Orientation="Horizontal" Margin="10,0,10,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <!-- Status and Type Counts -->
+                        <StackPanel x:Name="CountsPanel" Grid.Column="2" Orientation="Horizontal" Margin="10,0,10,0" VerticalAlignment="Center">
                             <!-- Active Count -->
                             <Border Background="#E8F5E9" Padding="6,4" CornerRadius="16" Margin="0,0,6,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -386,194 +374,222 @@
                                     <TextBlock x:Name="CompletedTextBlock" Text="Completed: 0" Foreground="#FF9800" FontSize="12" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Border>
-                            <!-- Dynamic booking type counts will be added here in code-behind -->
                         </StackPanel>
                     </Grid>
 
-                    <DataGrid x:Name="BookingDataGrid" 
-                        AutoGenerateColumns="False"
-                        CanUserAddRows="False"
-                        CanUserReorderColumns="False"
-                        HeadersVisibility="Column"
-                        IsReadOnly="True"
-                        SelectionMode="Extended"
-                        IsHitTestVisible="True"
-                        Focusable="False"
-                        RowHeight="NaN"
-                        ColumnHeaderHeight="40"
-                        GridLinesVisibility="None"
-                        BorderThickness="0"
-                        Background="#FAFBFF"
-                        Margin="10,54,-2,-54"
-                        Grid.ColumnSpan="2"
-                        ItemsSource="{Binding Bookings}">
+                    <!-- DataGrid with Scrolling Enabled -->
+                    <Border Grid.Row="1" BorderBrush="#E0E7ED" BorderThickness="1" CornerRadius="8" Background="#FAFBFF">
+                        <DataGrid x:Name="BookingDataGrid" 
+                                AutoGenerateColumns="False"
+                                CanUserAddRows="False"
+                                CanUserReorderColumns="False"
+                                HeadersVisibility="Column"
+                                IsReadOnly="True"
+                                SelectionMode="Extended"
+                                RowHeight="50"
+                                ColumnHeaderHeight="40"
+                                GridLinesVisibility="None"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                ScrollViewer.CanContentScroll="True"
+                                ItemsSource="{Binding Bookings}">
 
-                        <!-- Remove grid lines & borders -->
-                        <DataGrid.Resources>
-                            <!-- Cell Style -->
-                            <Style TargetType="DataGridCell">
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="Padding" Value="8,4"/>
-                                <Setter Property="Background" Value="White"/>
-                                <Setter Property="Focusable" Value="False"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="White"/>
-                                        <Setter Property="Foreground" Value="Black"/>
-                                        <Setter Property="BorderBrush" Value="Transparent"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
+                            <DataGrid.Resources>
+                                <!-- Cell Style -->
+                                <Style TargetType="DataGridCell">
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding" Value="8,4"/>
+                                    <Setter Property="Background" Value="White"/>
+                                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#E6F3FF"/>
+                                            <Setter Property="Foreground" Value="Black"/>
+                                            <Setter Property="BorderBrush" Value="#4A90E2"/>
+                                        </Trigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsSelected" Value="False"/>
+                                                <Condition Property="IsMouseOver" Value="True"/>
+                                            </MultiTrigger.Conditions>
+                                            <Setter Property="Background" Value="#F5F5F5"/>
+                                        </MultiTrigger>
+                                    </Style.Triggers>
+                                </Style>
 
-                            <!-- Row Style -->
-                            <Style TargetType="DataGridRow">
-                                <Setter Property="Background" Value="White"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                <Setter Property="Focusable" Value="False"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="White"/>
-                                        <Setter Property="Foreground" Value="Black"/>
-                                    </Trigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="White"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
+                                <!-- Row Style -->
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="White"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                    <Setter Property="BorderBrush" Value="#F0F0F0"/>
+                                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#E6F3FF"/>
+                                            <Setter Property="Foreground" Value="Black"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#F5F5F5"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
 
-                            <!-- Column Header Style -->
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="Background" Value="#F0F3FF"/>
-                                <!-- Whole header background -->
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                            </Style>
-                        </DataGrid.Resources>
+                                <!-- Column Header Style -->
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                                    <Setter Property="BorderBrush" Value="#4A90E2"/>
+                                    <Setter Property="Background" Value="#F0F3FF"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="FontSize" Value="14"/>
+                                    <Setter Property="Foreground" Value="#333"/>
+                                    <Setter Property="Padding" Value="8"/>
+                                </Style>
+                            </DataGrid.Resources>
 
-                        <!-- Columns -->
-                        <DataGrid.Columns>
-                            <!-- Booking Id -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" >
-                                        <Image Source="/assests/Booking.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Booking Id" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding booking_id}" FontSize="13"
-                               HorizontalAlignment="Center"
-                               TextAlignment="Center" Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                            <!-- Responsive Columns -->
+                            <DataGrid.Columns>
+                                <!-- Booking Id -->
+                                <DataGridTemplateColumn Width="1.2*" MinWidth="120" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/Booking.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Booking Id" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding booking_id}" FontSize="12"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" 
+                                                       TextWrapping="Wrap"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- Name -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/Person.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Name" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding guest_name}" FontSize="13"
-                               HorizontalAlignment="Center"
-                               TextAlignment="Center"  Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                <!-- Name -->
+                                <DataGridTemplateColumn Width="1.5*" MinWidth="150" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/Person.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Name" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding guest_name}" FontSize="13"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- Phone No -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/Phone.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Phone No" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding phone_number}" FontSize="13"
-                               HorizontalAlignment="Center"
-                               TextAlignment="Center"  Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                <!-- Phone No -->
+                                <DataGridTemplateColumn Width="1.2*" MinWidth="120" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/Phone.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Phone No" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding phone_number}" FontSize="13"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- Seat Type -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/Group.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Seat Type" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding booking_type}" FontSize="13"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center" Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                <!-- Seat Type -->
+                                <DataGridTemplateColumn Width="1*" MinWidth="100" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/Group.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Seat Type" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding booking_type}" FontSize="13"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- Start Time -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/clock.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Start Time" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding in_time, StringFormat=hh\\:mm}" FontSize="13"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center" Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                <!-- Start Time -->
+                                <DataGridTemplateColumn Width="1*" MinWidth="90" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/clock.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Start Time" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding in_time, StringFormat=hh\\:mm}" FontSize="13"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- End Time -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/clock.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="End Time" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding out_time, StringFormat=hh\\:mm}" FontSize="13"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center" Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                                <!-- End Time -->
+                                <DataGridTemplateColumn Width="1*" MinWidth="90" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/clock.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="End Time" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding out_time, StringFormat=hh\\:mm}" FontSize="13"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
 
-                            <!-- Status -->
-                            <DataGridTemplateColumn Width="*" IsReadOnly="True" CanUserResize="False">
-                                <DataGridTemplateColumn.Header>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Image Source="/assests/Vector.png" Width="16" Height="16" Margin="0,0,5,0"/>
-                                        <TextBlock Text="Status" FontSize="14" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </DataGridTemplateColumn.Header>
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding status}" FontSize="13"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center" Margin="0,20,0,0"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                                <!-- Status -->
+                                <DataGridTemplateColumn Width="1*" MinWidth="80" IsReadOnly="True">
+                                    <DataGridTemplateColumn.Header>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Image Source="/assests/Vector.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                                            <TextBlock Text="Status" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataGridTemplateColumn.Header>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border>
+                                                <TextBlock Text="{Binding status}" FontSize="12"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           TextAlignment="Center"
+                                                           Foreground="#333333"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
 
                     <!-- Container for dynamic content - Overlays everything -->
                     <Grid x:Name="ContentGrid" 

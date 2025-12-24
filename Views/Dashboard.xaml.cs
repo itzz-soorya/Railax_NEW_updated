@@ -20,10 +20,6 @@ namespace UserModule
         private Dictionary<string, int> bookingTypeCounts = new Dictionary<string, int>();
         private Dictionary<string, TextBlock> typeTextBlocks = new Dictionary<string, TextBlock>();
         private string currentFilter = "All"; // Track current filter state
-        
-        // Internet status monitoring
-        private DispatcherTimer? internetCheckTimer;
-        private int consecutiveFailures = 0;
 
         public Dashboard()
         {
@@ -35,7 +31,7 @@ namespace UserModule
             {
                 LoadBookings();
                 DateTextBlock.Text = DateTime.Now.ToString("MMMM d, yyyy");
-                
+
                 // Get username from LocalStorage instead of hardcoded "User"
                 string username = LocalStorage.GetItem("username");
                 if (string.IsNullOrEmpty(username))
@@ -43,12 +39,11 @@ namespace UserModule
                     username = "User"; // Fallback if not found
                 }
                 UpdateGreeting(username);
-                
+
                 InitializeBookingTypeCounts();
                 UpdateCountsFromBookings();
-                
-                // Initialize internet status monitoring
-                InitializeInternetStatusMonitor();
+
+                // Internet status monitoring is handled by Header control
             }
             catch (Exception ex)
             {
@@ -79,16 +74,55 @@ namespace UserModule
                     
                     // Apply current filter
                     ApplyFilter();
+
+                    // Update totals (count and amount)
+                    UpdateTotalsFromBookings();
                 }
                 else
                 {
                     Logger.Log("No bookings found in local database.");
+
+                    // Ensure totals show zero
+                    UpdateTotalsFromBookings();
                 }
             }
             catch (Exception ex)
             {
                 Logger.LogError(ex);
                 MessageBox.Show("Failed to load bookings from local database. Please try again later", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Update total bookings count and total amount UI
+        private void UpdateTotalsFromBookings()
+        {
+            try
+            {
+                if (TotalBookingsTextBox == null || TotalAmountTextBox == null)
+                    return;
+
+                int totalBookings = allBookings?.Count ?? 0;
+                decimal totalAmount = 0m;
+
+                if (allBookings != null && allBookings.Any())
+                {
+                    // Safely sum amounts (handle possible nulls)
+                    foreach (var b in allBookings)
+                    {
+                        try
+                        {
+                            totalAmount += b.total_amount;
+                        }
+                        catch { }
+                    }
+                }
+
+                TotalBookingsTextBox.Text = $"Total Bookings: {totalBookings}";
+                TotalAmountTextBox.Text = $"Total Amount: ₹{totalAmount:F2}";
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
             }
         }
 
@@ -610,139 +644,6 @@ namespace UserModule
                 Logger.LogError(ex); // ✅ Added Logger
                 // MessageBox.Show($"Search error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        /// <summary>
-        /// Initialize the internet status monitoring timer
-        /// </summary>
-        private void InitializeInternetStatusMonitor()
-        {
-            // Check immediately on load
-            _ = CheckInternetStatusAsync();
-
-            // Set up timer to check every 5 seconds
-            internetCheckTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(5)
-            };
-            internetCheckTimer.Tick += async (s, e) => await CheckInternetStatusAsync();
-            internetCheckTimer.Start();
-        }
-
-        /// <summary>
-        /// Check internet connection status and update the indicator
-        /// </summary>
-        private async Task CheckInternetStatusAsync()
-        {
-            try
-            {
-                bool isConnected = NetworkInterface.GetIsNetworkAvailable();
-                
-                if (!isConnected)
-                {
-                    // No network interface available - Red (No Internet)
-                    consecutiveFailures = 3;
-                    UpdateInternetStatus(InternetStatus.NoConnection);
-                    return;
-                }
-
-                // Try to ping a reliable server to check actual internet connectivity
-                bool hasInternet = await PingServerAsync("8.8.8.8", 3000); // Google DNS
-                
-                if (hasInternet)
-                {
-                    consecutiveFailures = 0;
-                    UpdateInternetStatus(InternetStatus.Good);
-                }
-                else
-                {
-                    consecutiveFailures++;
-                    
-                    if (consecutiveFailures >= 3)
-                    {
-                        // Multiple failures - Red (No Internet)
-                        UpdateInternetStatus(InternetStatus.NoConnection);
-                    }
-                    else if (consecutiveFailures >= 1)
-                    {
-                        // Some failures - Yellow (Unstable)
-                        UpdateInternetStatus(InternetStatus.Unstable);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex);
-                consecutiveFailures++;
-                
-                if (consecutiveFailures >= 2)
-                {
-                    UpdateInternetStatus(InternetStatus.NoConnection);
-                }
-                else
-                {
-                    UpdateInternetStatus(InternetStatus.Unstable);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Ping a server to check internet connectivity
-        /// </summary>
-        private async Task<bool> PingServerAsync(string host, int timeout)
-        {
-            try
-            {
-                using (var ping = new Ping())
-                {
-                    var reply = await ping.SendPingAsync(host, timeout);
-                    return reply.Status == IPStatus.Success;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Update the UI with the current internet status
-        /// </summary>
-        private void UpdateInternetStatus(InternetStatus status)
-        {
-            if (InternetStatusDot == null || InternetStatusText == null)
-                return;
-
-            switch (status)
-            {
-                case InternetStatus.Good:
-                    InternetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
-                    InternetStatusText.Text = "Online";
-                    InternetStatusDot.ToolTip = "Internet connection is stable";
-                    break;
-
-                case InternetStatus.Unstable:
-                    InternetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(255, 193, 7)); // Yellow/Amber
-                    InternetStatusText.Text = "Unstable";
-                    InternetStatusDot.ToolTip = "Internet connection is weak or unstable";
-                    break;
-
-                case InternetStatus.NoConnection:
-                    InternetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red
-                    InternetStatusText.Text = "Offline";
-                    InternetStatusDot.ToolTip = "No internet connection";
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Internet connection status enum
-        /// </summary>
-        private enum InternetStatus
-        {
-            Good,       // Green - Stable connection
-            Unstable,   // Yellow - Weak/intermittent connection
-            NoConnection // Red - No internet
         }
     }
 }

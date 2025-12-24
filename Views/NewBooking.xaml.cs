@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -30,17 +31,34 @@ namespace UserModule
 
         private readonly Dashboard? _dashboardInstance;
         private readonly DispatcherTimer dateTimeTimer = new DispatcherTimer();
+        private int idNumberEnterCount = 0; // Track Enter key presses on ID number field
+        private DispatcherTimer enterResetTimer = new DispatcherTimer(); // Timer to reset Enter count
 
         // ===== Parameterless constructor for XAML =====
         public NewBooking()
         {
             InitializeComponent();
 
+            // Initialize Enter reset timer
+            enterResetTimer.Interval = TimeSpan.FromSeconds(2); // Reset after 2 seconds of inactivity
+            enterResetTimer.Tick += (s, e) =>
+            {
+                idNumberEnterCount = 0;
+                enterResetTimer.Stop();
+            };
+
             txtFirstName.TextChanged += (s, e) => errCustomer.Visibility = Visibility.Collapsed;
             txtPhone.TextChanged += (s, e) => errPhone.Visibility = Visibility.Collapsed;
             txtPersons.TextChanged += (s, e) => errPersons.Visibility = Visibility.Collapsed;
             txtPaid.TextChanged += (s, e) => errPaid.Visibility = Visibility.Collapsed;
             txtIdNumber.TextChanged += (s, e) => errIdNumber.Visibility = Visibility.Collapsed;
+
+            // Reset Enter count when ID number changes
+            txtIdNumber.TextChanged += (s, e) => 
+            {
+                idNumberEnterCount = 0;
+                enterResetTimer.Stop();
+            };
 
             // Change TextBox foreground color based on content
             txtFirstName.TextChanged += TextBox_ForegroundColorChanged;
@@ -203,68 +221,451 @@ namespace UserModule
             }
         }
 
-        private void cmbIdType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        /// <summary>
+        /// Enhanced ID Type keyboard navigation handler with cycling down arrow selection
+        /// </summary>
+        private void IdType_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (cmbIdType.SelectedItem is ComboBoxItem selectedItem && lblIdInput != null)
+            try
             {
-                string selectedType = selectedItem.Content?.ToString()?.ToLower() ?? "";
+                var comboBox = sender as ComboBox;
+                if (comboBox == null) return;
 
-                // ✅ Always clear ID number when user changes dropdown
-                txtIdNumber.Clear();
-                errIdNumber.Visibility = Visibility.Collapsed;
-
-                // Remove any previous input restrictions
-                txtIdNumber.PreviewTextInput -= NumbersOnly_PreviewTextInput;
-                txtIdNumber.PreviewTextInput -= Alphanumeric_PreviewTextInput;
-
-                if (string.IsNullOrWhiteSpace(selectedType) || selectedType == "select id")
+                // Check for Shift+Enter to trigger Generate Bill
+                if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Shift)
                 {
-                    lblIdInput.Text = "Enter ID Number";
-                    txtIdNumber.MaxLength = 0;
-                    txtIdNumber.IsEnabled = false; // Disable input until valid selection
-                    SetForegroundColor(cmbIdType, true);
+                    e.Handled = true;
+                    GenerateBill_Click(sender, new RoutedEventArgs());
+                    return;
                 }
-                else
-                {
-                    lblIdInput.Text = $"Enter {selectedType} number";
-                    txtIdNumber.IsEnabled = true; // Enable input when valid ID type is selected
-                    SetForegroundColor(cmbIdType, false);
 
-                    // ✅ Apply input validation based on selected type
-                    switch (selectedType)
+                // Handle Down Arrow key for cycling through options
+                if (e.Key == Key.Down)
+                {
+                    e.Handled = true; // Prevent default ComboBox behavior
+                    
+                    int currentIndex = comboBox.SelectedIndex;
+                    int nextIndex;
+                    
+                    // Cycle through the items: placeholder(0) → Aadhar(1) → PNR Number(2) → PAN ID(3) → back to Aadhar(1)
+                    if (currentIndex <= 0) // If placeholder or no selection
                     {
-                        case "aadhar":
-                            txtIdNumber.MaxLength = AADHAR_NUMBER_LENGTH;
-                            txtIdNumber.PreviewTextInput += NumbersOnly_PreviewTextInput;
-                            break;
-
-                        case "pan":
-                            txtIdNumber.MaxLength = PAN_NUMBER_LENGTH;
-                            txtIdNumber.PreviewTextInput += Alphanumeric_PreviewTextInput;
-                            break;
-
-                        case "pnr":
-                            txtIdNumber.MaxLength = PNR_NUMBER_LENGTH;
-                            txtIdNumber.PreviewTextInput += NumbersOnly_PreviewTextInput;
-                            break;
-
-                        default:
-                            txtIdNumber.MaxLength = 0;
-                            break;
+                        nextIndex = 1; // Select Aadhar
                     }
+                    else if (currentIndex == 1) // If Aadhar
+                    {
+                        nextIndex = 2; // Select PNR Number
+                    }
+                    else if (currentIndex == 2) // If PNR Number
+                    {
+                        nextIndex = 3; // Select PAN ID
+                    }
+                    else // If PAN ID or beyond
+                    {
+                        nextIndex = 1; // Cycle back to Aadhar
+                    }
+                    
+                    // Set the new selection
+                    comboBox.SelectedIndex = nextIndex;
+                    return;
                 }
 
-                // ✅ Clear the ID number *again* (extra safety)
-                txtIdNumber.Text = string.Empty;
+                // Handle Up Arrow key for cycling in reverse
+                if (e.Key == Key.Up)
+                {
+                    e.Handled = true; // Prevent default ComboBox behavior
+                    
+                    int currentIndex = comboBox.SelectedIndex;
+                    int nextIndex;
+                    
+                    // Cycle in reverse: PAN ID(3) → PNR Number(2) → Aadhar(1) → PAN ID(3)
+                    if (currentIndex <= 1) // If placeholder or Aadhar
+                    {
+                        nextIndex = 3; // Select PAN ID
+                    }
+                    else if (currentIndex == 2) // If PNR Number
+                    {
+                        nextIndex = 1; // Select Aadhar
+                    }
+                    else // If PAN ID
+                    {
+                        nextIndex = 2; // Select PNR Number
+                    }
+                    
+                    // Set the new selection
+                    comboBox.SelectedIndex = nextIndex;
+                    return;
+                }
 
-                // ✅ Optional: focus back to make user type again
-                txtIdNumber.Focus();
+                // Handle Enter key
+                if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
+                    
+                    // Validate that we have a valid selection (not placeholder)
+                    if (cmbIdType.SelectedIndex <= 0)
+                    {
+                        // If no valid selection, select Aadhar by default
+                        cmbIdType.SelectedIndex = 1;
+                    }
+                    
+                    // The SelectionChanged event will handle moving to the next field
+                    // and setting up the ID number field configuration
+                    return;
+                }
+
+                // Handle Escape key to reset to placeholder
+                if (e.Key == Key.Escape)
+                {
+                    comboBox.SelectedIndex = 0; // Reset to placeholder
+                    e.Handled = true;
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IdType_PreviewKeyDown: {ex.Message}");
             }
         }
 
+        /// <summary>
+        /// Enhanced ID Number keyboard navigation handler with double-Enter support
+        /// </summary>
+        private void IdNumber_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            try
+            {
+                // Check for Shift+Enter to trigger Generate Bill
+                if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Shift)
+                {
+                    e.Handled = true;
+                    GenerateBill_Click(sender, new RoutedEventArgs());
+                    return;
+                }
 
+                if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
 
+                    // Validate ID number based on selected ID type
+                    if (!ValidateIdNumber())
+                    {
+                        errIdNumber.Visibility = Visibility.Visible;
+                        idNumberEnterCount = 0; // Reset count on validation failure
+                        return;
+                    }
+                    else
+                    {
+                        errIdNumber.Visibility = Visibility.Collapsed;
+                    }
 
+                    // Increment Enter count for this field
+                    idNumberEnterCount++;
+                    
+                    // Restart the reset timer
+                    enterResetTimer.Stop();
+                    enterResetTimer.Start();
+
+                    if (idNumberEnterCount == 1)
+                    {
+                        // First Enter: Move focus to Generate Bill button
+                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            GenerateBillButton.Focus();
+                        }), System.Windows.Threading.DispatcherPriority.Render);
+                    }
+                    else if (idNumberEnterCount >= 2)
+                    {
+                        // Second Enter: Trigger Generate Bill if form is valid
+                        if (ValidateForm())
+                        {
+                            // Reset count and trigger Generate Bill
+                            idNumberEnterCount = 0;
+                            enterResetTimer.Stop();
+                            GenerateBill_Click(sender, new RoutedEventArgs());
+                        }
+                        else
+                        {
+                            // Form not valid, just focus the Generate Bill button
+                            idNumberEnterCount = 0;
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                GenerateBillButton.Focus();
+                            }), System.Windows.Threading.DispatcherPriority.Render);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IdNumber_PreviewKeyDown: {ex.Message}");
+                idNumberEnterCount = 0; // Reset on error
+            }
+        }
+
+        /// <summary>
+        /// Validation method for ID number based on selected type
+        /// </summary>
+        private bool ValidateIdNumber()
+        {
+            try
+            {
+                if (cmbIdType.SelectedItem == null || cmbIdType.SelectedItem == idPlaceholder)
+                    return false;
+
+                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+                string idValue = txtIdNumber.Text.Trim();
+
+                switch (selectedIdType)
+                {
+                    case "Aadhar":
+                        return !string.IsNullOrWhiteSpace(idValue) && idValue.Length == 12 && idValue.All(char.IsDigit);
+
+                    case "PNR Number":
+                        return !string.IsNullOrWhiteSpace(idValue) && idValue.Length == 10 && idValue.All(char.IsDigit);
+
+                    case "PAN ID":
+                        return !string.IsNullOrWhiteSpace(idValue) && idValue.Length == 10 &&
+                               Regex.IsMatch(idValue, @"^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$");
+
+                    default:
+                        return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in ValidateIdNumber: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void cmbIdType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                // Reset Enter count when ID type changes
+                idNumberEnterCount = 0;
+                enterResetTimer.Stop();
+
+                if (cmbIdType.SelectedItem is ComboBoxItem selectedItem && lblIdInput != null)
+                {
+                    string selectedType = selectedItem.Content?.ToString()?.ToLower() ?? "";
+
+                    // ✅ Always clear ID number when user changes dropdown
+                    txtIdNumber.Clear();
+                    errIdNumber.Visibility = Visibility.Collapsed;
+
+                    // Remove any previous input restrictions
+                    txtIdNumber.PreviewTextInput -= NumbersOnly_PreviewTextInput;
+                    txtIdNumber.PreviewTextInput -= Alphanumeric_PreviewTextInput;
+                    txtIdNumber.PreviewTextInput -= IdNumber_PreviewTextInput;
+
+                    if (string.IsNullOrWhiteSpace(selectedType) || selectedType == "select id")
+                    {
+                        lblIdInput.Text = "Enter ID Number";
+                        txtIdNumber.MaxLength = 0;
+                        txtIdNumber.IsEnabled = false; // Disable input until valid selection
+                        SetForegroundColor(cmbIdType, true);
+                    }
+                    else
+                    {
+                        txtIdNumber.IsEnabled = true; // Enable input when valid ID type is selected
+                        SetForegroundColor(cmbIdType, false);
+                        errIdType.Visibility = Visibility.Collapsed;
+
+                        // ✅ Apply input validation and setup based on selected type
+                        switch (selectedType)
+                        {
+                            case "aadhar":
+                                txtIdNumber.MaxLength = AADHAR_NUMBER_LENGTH;
+                                txtIdNumber.Tag = "Enter 12 digit Aadhar number";
+                                lblIdInput.Text = "Enter Aadhar Number";
+                                txtIdNumber.PreviewTextInput += IdNumber_PreviewTextInput;
+                                break;
+
+                            case "pnr number":
+                                txtIdNumber.MaxLength = PNR_NUMBER_LENGTH;
+                                txtIdNumber.Tag = "Enter 10 digit PNR number";
+                                lblIdInput.Text = "Enter PNR Number";
+                                txtIdNumber.PreviewTextInput += IdNumber_PreviewTextInput;
+                                break;
+
+                            case "pan id":
+                                txtIdNumber.MaxLength = PAN_NUMBER_LENGTH;
+                                txtIdNumber.Tag = "Enter PAN ID (ABCDE1234F)";
+                                lblIdInput.Text = "Enter PAN ID";
+                                txtIdNumber.PreviewTextInput += IdNumber_PreviewTextInput;
+                                break;
+
+                            default:
+                                txtIdNumber.MaxLength = 0;
+                                break;
+                        }
+
+                        // ✅ Auto-navigate to ID Number field when valid selection is made
+                        // Use dispatcher to ensure the ComboBox has finished processing
+                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            // Close dropdown if it's still open
+                            if (cmbIdType.IsDropDownOpen)
+                            {
+                                cmbIdType.IsDropDownOpen = false;
+                            }
+                            
+                            // Focus on ID Number field
+                            txtIdNumber.Focus();
+                        }), System.Windows.Threading.DispatcherPriority.Input);
+                    }
+
+                    // ✅ Clear the ID number *again* (extra safety)
+                    txtIdNumber.Text = string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in cmbIdType_SelectionChanged: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Enhanced ID Number input validation based on selected type
+        /// </summary>
+        private void IdNumber_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            try
+            {
+                if (cmbIdType.SelectedItem == null || cmbIdType.SelectedItem == idPlaceholder)
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+
+                switch (selectedIdType)
+                {
+                    case "Aadhar":
+                    case "PNR Number":
+                        // Only allow digits
+                        e.Handled = !Regex.IsMatch(e.Text, "^[0-9]+$");
+                        break;
+
+                    case "PAN ID":
+                        string currentText = txtIdNumber.Text;
+                        int caretIndex = txtIdNumber.CaretIndex;
+
+                        // PAN format: ABCDE1234F (5 letters, 4 digits, 1 letter)
+                        if (caretIndex < 5)
+                        {
+                            // First 5 positions: only letters (accept both upper and lower case)
+                            e.Handled = !Regex.IsMatch(e.Text, "^[a-zA-Z]+$");
+
+                            // Convert to uppercase if it's a valid letter
+                            if (!e.Handled)
+                            {
+                                // Cancel the original input and insert uppercase version
+                                e.Handled = true;
+
+                                // Insert uppercase text at current position
+                                string upperText = e.Text.ToUpper();
+                                int currentCaretIndex = txtIdNumber.CaretIndex;
+                                string newText = currentText.Insert(currentCaretIndex, upperText);
+
+                                // Update text and caret position
+                                txtIdNumber.Text = newText;
+                                txtIdNumber.CaretIndex = currentCaretIndex + upperText.Length;
+                            }
+                        }
+                        else if (caretIndex >= 5 && caretIndex < 9)
+                        {
+                            // Positions 5-8: only digits
+                            e.Handled = !Regex.IsMatch(e.Text, "^[0-9]+$");
+                        }
+                        else if (caretIndex == 9)
+                        {
+                            // Last position: only letter (accept both upper and lower case)
+                            e.Handled = !Regex.IsMatch(e.Text, "^[a-zA-Z]+$");
+
+                            // Convert to uppercase if it's a valid letter
+                            if (!e.Handled)
+                            {
+                                // Cancel the original input and insert uppercase version
+                                e.Handled = true;
+
+                                // Insert uppercase text at current position
+                                string upperText = e.Text.ToUpper();
+                                int currentCaretIndex = txtIdNumber.CaretIndex;
+                                string newText = currentText.Insert(currentCaretIndex, upperText);
+
+                                // Update text and caret position
+                                txtIdNumber.Text = newText;
+                                txtIdNumber.CaretIndex = currentCaretIndex + upperText.Length;
+                            }
+                        }
+                        break;
+
+                    default:
+                        e.Handled = true;
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IdNumber_PreviewTextInput: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Enhanced ID Number pasting validation
+        /// </summary>
+        private void IdNumber_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            try
+            {
+                if (cmbIdType.SelectedItem == null || cmbIdType.SelectedItem == idPlaceholder)
+                {
+                    e.CancelCommand();
+                    return;
+                }
+
+                if (e.DataObject.GetDataPresent(DataFormats.Text))
+                {
+                    string pastedText = (e.DataObject.GetData(DataFormats.Text) as string) ?? string.Empty;
+                    string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+
+                    bool isValid = selectedIdType switch
+                    {
+                        "Aadhar" => Regex.IsMatch(pastedText, @"^[0-9]{12}$"),
+                        "PNR Number" => Regex.IsMatch(pastedText, @"^[0-9]{10}$"),
+                        "PAN ID" => Regex.IsMatch(pastedText, @"^[a-zA-Z]{5}[0-9]{4}[a-zA-Z]{1}$"),
+                        _ => false
+                    };
+
+                    if (!isValid)
+                    {
+                        e.CancelCommand();
+                    }
+                    else if (selectedIdType == "PAN ID")
+                    {
+                        // For PAN ID, convert to uppercase
+                        e.CancelCommand();
+
+                        // Manually set the uppercase text
+                        txtIdNumber.Text = pastedText.ToUpper();
+                        txtIdNumber.CaretIndex = txtIdNumber.Text.Length;
+                    }
+                }
+                else
+                {
+                    e.CancelCommand();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IdNumber_Pasting: {ex.Message}");
+                e.CancelCommand();
+            }
+        }
 
         // ===== Constructor with Dashboard instance =====
         public NewBooking(Dashboard dashboard) : this()
@@ -282,8 +683,9 @@ namespace UserModule
 
         private void UserControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Stop and dispose timer to prevent memory leaks
+            // Stop and dispose timers to prevent memory leaks
             dateTimeTimer?.Stop();
+            enterResetTimer?.Stop();
         }
 
         private void BillingControl_CloseRequested(object? sender, EventArgs e)
@@ -516,6 +918,10 @@ namespace UserModule
 
         private void ClearBookingForm()
         {
+            // Reset Enter count and timer
+            idNumberEnterCount = 0;
+            enterResetTimer.Stop();
+
             // Clear all textboxes
             txtFirstName.Text = string.Empty;
             txtLastName.Text = string.Empty;
@@ -692,6 +1098,10 @@ namespace UserModule
         // Cancel Button Click Event
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
+            // Reset Enter count and timer
+            idNumberEnterCount = 0;
+            enterResetTimer.Stop();
+
             // Clear all input fields
             txtFirstName.Text = string.Empty;
             txtLastName.Text = string.Empty;
@@ -976,6 +1386,12 @@ namespace UserModule
             SetForegroundColor(txtPhone, true);
             SetForegroundColor(txtPersons, true);
             SetForegroundColor(txtIdNumber, true);
+
+            // Ensure proper scrolling setup after layout is complete
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                EnsureContentVisible();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         /// <summary>
@@ -983,30 +1399,74 @@ namespace UserModule
         /// </summary>
         private void UserControl_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // Check if any ComboBox dropdown is open
+            // Only prevent scrolling when ComboBox dropdowns are open to avoid conflicts
             if (IsAnyComboBoxOpen())
             {
                 // Don't interfere with dropdown scrolling
                 return;
             }
 
-            // Manually scroll the FormScrollViewer
+            // Let the ScrollViewer handle all other scrolling naturally
+            // No manual intervention needed - the ScrollViewer configuration handles it
+        }
+
+        /// <summary>
+        /// Scrolls to the top of the form content
+        /// </summary>
+        public void ScrollToTop()
+        {
+            FormScrollViewer?.ScrollToTop();
+        }
+
+        /// <summary>
+        /// Scrolls to the bottom of the form content
+        /// </summary>
+        public void ScrollToBottom()
+        {
+            FormScrollViewer?.ScrollToBottom();
+        }
+
+        /// <summary>
+        /// Scrolls to a specific vertical position in the form
+        /// </summary>
+        /// <param name="offset">The vertical offset to scroll to</param>
+        public void ScrollToVerticalOffset(double offset)
+        {
+            FormScrollViewer?.ScrollToVerticalOffset(offset);
+        }
+
+        /// <summary>
+        /// Ensures the scroll view is properly positioned and content is visible
+        /// </summary>
+        private void EnsureContentVisible()
+        {
             if (FormScrollViewer != null)
             {
-                if (e.Delta > 0)
-                {
-                    // Scroll up
-                    FormScrollViewer.ScrollToVerticalOffset(FormScrollViewer.VerticalOffset - 50);
-                }
-                else
-                {
-                    // Scroll down
-                    FormScrollViewer.ScrollToVerticalOffset(FormScrollViewer.VerticalOffset + 50);
-                }
+                // Update layout to ensure proper measurement
+                FormScrollViewer.UpdateLayout();
                 
-                // Mark event as handled to prevent default behavior
-                e.Handled = true;
+                // If content is larger than viewport, ensure scrollbar is available
+                if (FormScrollViewer.ExtentHeight > FormScrollViewer.ViewportHeight)
+                {
+                    // Scroll to show the form is scrollable (slight scroll from top)
+                    FormScrollViewer.ScrollToVerticalOffset(10);
+                }
             }
+        }
+
+        private void UserControl_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            // Optional: Change cursor to Hand when hovering over the form (for better UX)
+            if (e.LeftButton == MouseButtonState.Released && e.RightButton == MouseButtonState.Released)
+            {
+                Mouse.OverrideCursor = Cursors.Hand;
+            }
+        }
+
+        private void UserControl_MouseLeave(object sender, MouseEventArgs e)
+        {
+            // Reset cursor when mouse leaves the user control
+            Mouse.OverrideCursor = null;
         }
 
         /// <summary>
@@ -1035,13 +1495,14 @@ namespace UserModule
                 // Re-add placeholder
                 var placeholder = new ComboBoxItem
                 {
-                    Content = "Select",
+                    Content = "Select type ",
                     IsEnabled = false,
                     IsSelected = true,
                     Style = (Style)FindResource("WhiteComboBoxItemStyle")
                 };
                 placeholder.SetValue(System.Windows.Controls.Primitives.Selector.IsSelectedProperty, true);
                 txtSeats.Items.Add(placeholder);
+                seatsPlaceholder = placeholder;
 
                 // Add booking types from database
                 if (bookingTypes.Count > 0)
@@ -1204,6 +1665,11 @@ namespace UserModule
             {
                 Logger.LogError(ex);
             }
+        }
+
+        private void txtRate_TextChanged(object sender, TextChangedEventArgs e)
+        {
+
         }
     }
 }

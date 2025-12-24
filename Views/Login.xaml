@@ -56,7 +56,15 @@
     </UserControl.Resources>
     
 
-    <Grid x:Name="RootGrid">
+    <!-- Main ScrollViewer for entire Login form -->
+    <ScrollViewer x:Name="LoginScrollViewer"
+                  VerticalScrollBarVisibility="Auto" 
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalFirst"
+                  CanContentScroll="False"
+                  IsDeferredScrollingEnabled="False">
+
+        <Grid x:Name="RootGrid" Margin="0,0,0,50">
         
 
         <!-- ✅ Column definitions must be at the top -->
@@ -255,4 +263,5 @@
 
 
     </Grid>
+    </ScrollViewer>
 </UserControl>

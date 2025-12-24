@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;               // For Brush, Brushes, Colors, BrushConverter
 using System.Windows.Media.Effects;       // For DropShadowEffect
 using System.Windows.Threading;          // For DispatcherTimer
-
+using System.Windows.Shapes; // For Ellipse
 
 namespace UserModule
 {
@@ -15,20 +15,135 @@ namespace UserModule
     public partial class Header : UserControl
     {
         private Button? _selectedButton;
+        // Local references to the internet status controls (resolved after InitializeComponent)
+        private Ellipse? _internetStatusDot;
+        private TextBlock? _internetStatusText;
 
         public Header()
         {
             InitializeComponent();
+
+            // Resolve named controls (safe approach if generated fields are not available)
+            _internetStatusDot = FindName("InternetStatusDot") as Ellipse;
+            _internetStatusText = FindName("InternetStatusText") as TextBlock;
+            
             LoadContent(new Dashboard());
 
             // Initially select Dashboard button
             _selectedButton = DashboardButton;
             SetSelectedButton(_selectedButton);
 
-            
-
-
+            // Start internet monitor
+            InitializeInternetStatusMonitor();
         }
+
+        // Internet status monitoring
+        private DispatcherTimer? internetCheckTimer;
+        private int consecutiveFailures = 0;
+
+        private void InitializeInternetStatusMonitor()
+        {
+            // Check immediately on load
+            _ = CheckInternetStatusAsync();
+
+            // Set up timer to check every 5 seconds
+            internetCheckTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            internetCheckTimer.Tick += async (s, e) => await CheckInternetStatusAsync();
+            internetCheckTimer.Start();
+        }
+
+        private async System.Threading.Tasks.Task CheckInternetStatusAsync()
+        {
+            try
+            {
+                bool isConnected = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable();
+
+                if (!isConnected)
+                {
+                    consecutiveFailures = 3;
+                    UpdateInternetStatus(InternetStatus.NoConnection);
+                    return;
+                }
+
+                bool hasInternet = await PingServerAsync("8.8.8.8", 3000);
+
+                if (hasInternet)
+                {
+                    consecutiveFailures = 0;
+                    UpdateInternetStatus(InternetStatus.Good);
+                }
+                else
+                {
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= 3)
+                        UpdateInternetStatus(InternetStatus.NoConnection);
+                    else
+                        UpdateInternetStatus(InternetStatus.Unstable);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                consecutiveFailures++;
+                if (consecutiveFailures >= 2)
+                    UpdateInternetStatus(InternetStatus.NoConnection);
+                else
+                    UpdateInternetStatus(InternetStatus.Unstable);
+            }
+        }
+
+        private async System.Threading.Tasks.Task<bool> PingServerAsync(string host, int timeout)
+        {
+            try
+            {
+                using (var ping = new System.Net.NetworkInformation.Ping())
+                {
+                    var reply = await ping.SendPingAsync(host, timeout);
+                    return reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void UpdateInternetStatus(InternetStatus status)
+        {
+            // Use local resolved references
+            if (_internetStatusDot == null || _internetStatusText == null)
+                return;
+
+            switch (status)
+            {
+                case InternetStatus.Good:
+                    _internetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
+                    _internetStatusText.Text = "Online";
+                    _internetStatusDot.ToolTip = "Internet connection is stable";
+                    break;
+                case InternetStatus.Unstable:
+                    _internetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(255, 193, 7)); // Yellow
+                    _internetStatusText.Text = "Unstable";
+                    _internetStatusDot.ToolTip = "Internet connection is weak or unstable";
+                    break;
+                case InternetStatus.NoConnection:
+                    _internetStatusDot.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red
+                    _internetStatusText.Text = "Offline";
+                    _internetStatusDot.ToolTip = "No internet connection";
+                    break;
+            }
+        }
+
+        private enum InternetStatus
+        {
+            Good,
+            Unstable,
+            NoConnection
+        }
+
         public void SetLoggedInUser(string username)
         {
             // Capitalize first letter of username
@@ -204,6 +319,77 @@ namespace UserModule
             SetSubmitButtonVisibility(false); // Hide Submit button
             var dashboard = MainContentGrid.Children.OfType<Dashboard>().FirstOrDefault() ?? new Dashboard();
             LoadContent(new NewBooking(dashboard));
+        }
+
+        private void HeaderScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Delegate to any open Dashboard inside MainContentHost or MainWindow
+            try
+            {
+                // First try Header's own MainContentHost
+                var dashboard = MainContentHost.Content as Dashboard;
+                if (dashboard != null)
+                {
+                    // Trigger dashboard's scan action by invoking its ScanButton_Click handler via reflection-like call
+                    dashboard.Dispatcher.Invoke(() => {
+                        // Create SimpleScanControl as Dashboard does
+                        var scanControl = new SimpleScanControl();
+                        scanControl.CloseRequested += (s, ev) =>
+                        {
+                            dashboard.ContentGrid.Children.Clear();
+                            dashboard.ContentGrid.Visibility = Visibility.Collapsed;
+                            dashboard.LoadBookings();
+                            dashboard.UpdateCountsFromBookings();
+                        };
+                        dashboard.ContentGrid.Children.Clear();
+                        dashboard.ContentGrid.Children.Add(scanControl);
+                        dashboard.ContentGrid.Visibility = Visibility.Visible;
+                    });
+                    return;
+                }
+
+                // Otherwise try MainWindow's MainContent which usually contains Header -> MainContentHost
+                var mainWindow = Application.Current.MainWindow as MainWindow;
+                if (mainWindow?.MainContent.Content is Header header && header.MainContentHost.Content is Dashboard dash)
+                {
+                    dash.Dispatcher.Invoke(() => {
+                        var scanControl = new SimpleScanControl();
+                        scanControl.CloseRequested += (s, ev) =>
+                        {
+                            dash.ContentGrid.Children.Clear();
+                            dash.ContentGrid.Visibility = Visibility.Collapsed;
+                            dash.LoadBookings();
+                            dash.UpdateCountsFromBookings();
+                        };
+                        dash.ContentGrid.Children.Clear();
+                        dash.ContentGrid.Children.Add(scanControl);
+                        dash.ContentGrid.Visibility = Visibility.Visible;
+                    });
+                    return;
+                }
+
+                // As fallback, load a new Dashboard into Header and open scan
+                var newDash = new Dashboard();
+                LoadContent(newDash);
+                newDash.Dispatcher.Invoke(() => {
+                    var scanControl = new SimpleScanControl();
+                    scanControl.CloseRequested += (s, ev) =>
+                    {
+                        newDash.ContentGrid.Children.Clear();
+                        newDash.ContentGrid.Visibility = Visibility.Collapsed;
+                        newDash.LoadBookings();
+                        newDash.UpdateCountsFromBookings();
+                    };
+                    newDash.ContentGrid.Children.Clear();
+                    newDash.ContentGrid.Children.Add(scanControl);
+                    newDash.ContentGrid.Visibility = Visibility.Visible;
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                MessageBox.Show("Error opening scan control.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         public void OpenNewBooking()

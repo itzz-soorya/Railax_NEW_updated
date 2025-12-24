@@ -6,7 +6,9 @@
              xmlns:comp="clr-namespace:UserModule.Components"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             MinWidth="600" MinHeight="600" 
+             MinWidth="600"
+             MinHeight="500"
+             MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
              Loaded="UserControl_Loaded"
              Unloaded="UserControl_Unloaded"
              PreviewMouseWheel="UserControl_PreviewMouseWheel">
@@ -262,7 +264,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+    <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch" MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -319,12 +321,15 @@
         <!-- FORM -->
         <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="30" Margin="20,0,20,20">
             <ScrollViewer x:Name="FormScrollViewer"
-                          VerticalScrollBarVisibility="Auto" 
-                          HorizontalScrollBarVisibility="Auto"
-                          PanningMode="VerticalOnly"
-                          CanContentScroll="False">
+                          VerticalScrollBarVisibility="Hidden" 
+                          HorizontalScrollBarVisibility="Hidden"
+                          PanningMode="VerticalFirst"
+                          CanContentScroll="False"
+                          IsDeferredScrollingEnabled="False"
+                          Padding="0,0,0,0"
+                          BorderThickness="0">
                 <!-- Main content grid (your booking form) -->
-                <Grid x:Name="MainContentGrid">
+                <Grid x:Name="MainContentGrid" Margin="0,0,0,20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -577,74 +582,56 @@
                     </StackPanel>
                     <!-- Proof Information -->
                     <Grid Grid.Row="5" Grid.ColumnSpan="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,0,0,20">
-
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
+                        
                         <!-- First Proof Field: ID Type -->
                         <Grid Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0,0,10,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Proof information" FontWeight="SemiBold" FontSize="14" Foreground="#222" Margin="0,0,0,14"/>
-
-                            <StackPanel Grid.Row="0" Background="Transparent">
-                                <TextBlock Text="ID Type" FontWeight="SemiBold" FontSize="14" Foreground="#333" Margin="0,30,0,8"/>
+                            <StackPanel Background="Transparent">
+                                <TextBlock Text="Proof Information" FontWeight="SemiBold" FontSize="16" Foreground="#333" Margin="0,0,0,12"/>
+                                <TextBlock Text="ID Type" FontWeight="SemiBold" FontSize="14" Foreground="#333" Margin="0,0,0,8"/>
                                 <ComboBox x:Name="cmbIdType"
-                                 Height="40"
-                                 Padding="10,0"
-                                 FontSize="14"
-                                 Foreground="Black"
-                                 FontWeight="DemiBold"
-                                 Background="White"
-                                 HorizontalContentAlignment="Left"
-                                 VerticalContentAlignment="Center"
-                                 MaxDropDownHeight="150"
-                                 PreviewKeyDown="Control_PreviewKeyDown"
-                                 Style="{StaticResource WhiteComboBoxStyle}"
-                                 SelectionChanged="cmbIdType_SelectionChanged">
+                                         Height="40"
+                                         Padding="10,0"
+                                         FontSize="14"
+                                         Foreground="Black"
+                                         FontWeight="DemiBold"
+                                         Background="White"
+                                         HorizontalContentAlignment="Left"
+                                         VerticalContentAlignment="Center"
+                                         MaxDropDownHeight="150"
+                                         PreviewKeyDown="IdType_PreviewKeyDown"
+                                         Style="{StaticResource WhiteComboBoxStyle}"
+                                         SelectionChanged="cmbIdType_SelectionChanged">
                                     <ComboBoxItem x:Name="idPlaceholder" Content="Select ID" IsEnabled="False" IsSelected="True"/>
                                     <ComboBoxItem Content="Aadhar" Style="{StaticResource WhiteComboBoxItemStyle}"/>
-                                    <ComboBoxItem Content="PNR Number"  Style="{StaticResource WhiteComboBoxItemStyle}"/>
-                                    <ComboBoxItem Content="PAN ID"  Style="{StaticResource WhiteComboBoxItemStyle}"/>
+                                    <ComboBoxItem Content="PNR Number" Style="{StaticResource WhiteComboBoxItemStyle}"/>
+                                    <ComboBoxItem Content="PAN ID" Style="{StaticResource WhiteComboBoxItemStyle}"/>
                                 </ComboBox>
                                 <TextBlock x:Name="errIdType" Text="* Select ID Type" Foreground="#CC1F1F" FontSize="12" Visibility="Collapsed" Margin="5,2,0,0"/>
                             </StackPanel>
-
                         </Grid>
 
                         <!-- Second Proof Field: Dynamic Input -->
-                        <Grid Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="10,30,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Grid.Row="0" Background="Transparent">
-                                <TextBlock x:Name="lblIdInput" Text="Enter ID Number" FontWeight="SemiBold" FontSize="14" Foreground="#333" Margin="0,0,0,8"/>
-
+                        <Grid Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="10,0,0,0">
+                            <StackPanel Background="Transparent">
+                                <TextBlock x:Name="lblIdInput" Text="Enter ID Number" FontWeight="SemiBold" FontSize="14" Foreground="#333" Margin="0,30,0,8"/>
+                                <TextBox x:Name="txtIdNumber"
+                                        Foreground="Black" FontWeight="DemiBold"
+                                        Style="{StaticResource RoundedWatermarkTextBoxStyle}" 
+                                        Tag="ID Number" 
+                                        Height="40"
+                                        TextWrapping="NoWrap"
+                                        AcceptsReturn="False"
+                                        IsEnabled="False"
+                                        PreviewKeyDown="IdNumber_PreviewKeyDown"
+                                        PreviewTextInput="NumbersOnly_PreviewTextInput"
+                                        DataObject.Pasting="NumbersOnly_Pasting"/>
+                                <TextBlock x:Name="errIdNumber" Text="* Fill ID Number" Foreground="#CC1F1F" FontSize="12" Visibility="Collapsed" Margin="5,2,0,0"/>
                             </StackPanel>
-
-                            <TextBox Grid.Row="1"
-                              x:Name="txtIdNumber"
-                              Foreground="Black" FontWeight="DemiBold"
-                              Style="{StaticResource RoundedWatermarkTextBoxStyle}" 
-                              Tag="ID Number" 
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch"
-                              MinHeight="40"
-                              MaxHeight="100"
-                              AcceptsReturn="False"
-                              TextWrapping="NoWrap"
-                              IsEnabled="False"
-                              PreviewKeyDown="Control_PreviewKeyDown"
-                              PreviewTextInput="NumbersOnly_PreviewTextInput"
-                              DataObject.Pasting="NumbersOnly_Pasting"/>
-                            <TextBlock x:Name="errIdNumber" Text="* Fill ID Number" Foreground="#CC1F1F" FontSize="12" Visibility="Collapsed" Margin="0,45,5,-28" Grid.Row="1"/>
                         </Grid>
-
                     </Grid>
 
                     <!-- Submit / Cancel Buttons -->

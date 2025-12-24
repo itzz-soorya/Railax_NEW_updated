@@ -84,14 +84,45 @@
                                Width="50"
                                Height="50"/>
                     </Border> -->
-                    
-                    <Button x:Name="DashboardButton" Content="Dashboard" Style="{StaticResource HeaderButtonStyle}" MinWidth="120" Click="Dashboard_Click"/>
-                    <Button x:Name="NewBookingButton" Content="New Booking" Style="{StaticResource HeaderButtonStyle}" MinWidth="140" Click="NewBooking_Click"/>
+
+                    <Button x:Name="DashboardButton" Style="{StaticResource HeaderButtonStyle}" MinWidth="120" Click="Dashboard_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="/Views/Dashboard.png" Width="25" Height="25" Margin="0,0,6,0"/>
+                            <TextBlock Text="Dashboard" VerticalAlignment="Center" FontSize="15"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NewBookingButton" Style="{StaticResource HeaderButtonStyle}" MinWidth="140" Click="NewBooking_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="/Views/NewBooking.png" Width="24" Height="24" Margin="0,0,8,0" Stretch="Fill"/>
+                            <TextBlock Text="New Booking" VerticalAlignment="Center" FontSize="15"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ScanHeaderButton" Style="{StaticResource HeaderButtonStyle}" MinWidth="120" Click="HeaderScanButton_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="/Assets/Images/Scan.png" Width="30" Height="30" Margin="0,0,6,0"/>
+                            <TextBlock Text="Close Booking" VerticalAlignment="Center" FontSize="15"/>
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="SubmitBookingButton" Content="Submit Booking" Style="{StaticResource HeaderButtonStyle}" MinWidth="150" Click="Submit_Click" Background="#555555" Visibility="Collapsed"  />
                 </StackPanel>
 
-                <!-- User Info -->
+                <!-- Action Buttons - Right Aligned -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,20,0">
+                    <!-- Internet Status Indicator (moved from Dashboard) -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0" ToolTip="Internet Connection Status">
+                        <Ellipse x:Name="InternetStatusDot" 
+                                 Width="12" Height="12" 
+                                 Fill="Gray"
+                                 Stroke="White"
+                                 StrokeThickness="1"/>
+                        <TextBlock x:Name="InternetStatusText" 
+                                   Text="Checking..." 
+                                   Foreground="White" 
+                                   FontSize="11" 
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
                     <Image Source="/Assets/Images/usericon.png" Width="32" Height="32"/>
                     <TextBlock x:Name="UserNameTextBlock"
                                Text="USER NAME"
@@ -129,11 +160,9 @@
 
         <!-- Main Content Area -->
         <Border Background="White" Grid.Row="1" Margin="20" CornerRadius="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <ScrollViewer HorizontalAlignment="Stretch">
-                <Grid x:Name="MainContentGrid" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                    <ContentControl x:Name="MainContentHost" Margin="0,-10,0,10"/>
-                </Grid>
-            </ScrollViewer>
+            <Grid x:Name="MainContentGrid" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <ContentControl x:Name="MainContentHost" Margin="0,-10,0,10"/>
+            </Grid>
         </Border>
 
         <!-- Footer -->

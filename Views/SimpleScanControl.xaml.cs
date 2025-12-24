@@ -159,8 +159,12 @@ namespace UserModule
         {
             try
             {
+                // Defensive null checks in case control not yet initialized
+                if (cmbPaymentMethod == null || btnCompletePayment == null || errPaymentMethod == null)
+                    return;
+
                 // Only check if payment method is selected
-                bool isValid = cmbPaymentMethod.SelectedIndex > 0;
+                bool isValid = cmbPaymentMethod.SelectedIndex > 0 && cmbPaymentMethod.Items.Count > 0;
 
                 // Enable/disable complete button
                 btnCompletePayment.IsEnabled = isValid;
@@ -200,7 +204,7 @@ namespace UserModule
                 }
 
                 // Validate inputs
-                if (cmbPaymentMethod.SelectedIndex <= 0)
+                if (cmbPaymentMethod == null || cmbPaymentMethod.SelectedIndex <= 0)
                 {
                     MessageBox.Show("Please select a payment method!", "Validation Error", 
                         MessageBoxButton.OK, MessageBoxImage.Warning);
