@@ -1292,8 +1292,8 @@ public static class OfflineBookingStorage
             string jsonResponse = await response.Content.ReadAsStringAsync();
             
             // Show raw JSON response in MessageBox
-            MessageBox.Show($"📥 Raw API Response:\n\n{jsonResponse}", 
-                "API Data Received", MessageBoxButton.OK, MessageBoxImage.Information);
+            // MessageBox.Show($"📥 Raw API Response:\n\n{jsonResponse}", 
+            //     "API Data Received", MessageBoxButton.OK, MessageBoxImage.Information);
             
             var hallTypesResponse = JsonConvert.DeserializeObject<HallTypesResponse>(jsonResponse);
 
@@ -1326,12 +1326,12 @@ public static class OfflineBookingStorage
                 ? $"{hallTypesResponse.AdvancePayment.Value}%" 
                 : "Not Set";
             
-            MessageBox.Show($"✅ Settings Loaded Successfully!\n\n" +
-                $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                $"Booking Types ({typesInfo.Count}):\n{typesDisplay}\n\n" +
-                $"Advance Payment: {(hallTypesResponse.AdvancePaymentEnabled ? "Enabled" : "Disabled")}\n" +
-                $"Default Advance: {advanceDisplay}", 
-                "Settings Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+            // MessageBox.Show($"✅ Settings Loaded Successfully!\n\n" +
+            //     $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            //     $"Booking Types ({typesInfo.Count}):\n{typesDisplay}\n\n" +
+            //     $"Advance Payment: {(hallTypesResponse.AdvancePaymentEnabled ? "Enabled" : "Disabled")}\n" +
+            //     $"Default Advance: {advanceDisplay}", 
+            //     "Settings Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
 
             return true;
         }
