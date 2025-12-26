@@ -65,19 +65,22 @@ public static class OfflineBookingStorage
             cmd.ExecuteNonQuery();
         }
 
-        // Create Settings table with type1-4 and their amounts
+        // Drop old Settings table to recreate with new schema
+        string dropOldSettingsTable = "DROP TABLE IF EXISTS Settings";
+        using (var cmd = new SqliteCommand(dropOldSettingsTable, connection))
+        {
+            cmd.ExecuteNonQuery();
+        }
+
+        // Create Settings table with only 2 types
         string createSettingsTable = @"
         CREATE TABLE IF NOT EXISTS Settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_id TEXT,
-            type1 TEXT,
-            type1_amount REAL,
-            type2 TEXT,
-            type2_amount REAL,
-            type3 TEXT,
-            type3_amount REAL,
-            type4 TEXT,
-            type4_amount REAL,
+            type_1 TEXT,
+            type_1_amount REAL,
+            type_2 TEXT,
+            type_2_amount REAL,
             advance_payment_enabled INTEGER DEFAULT 0,
             default_advance_percentage REAL DEFAULT 0,
             last_synced TEXT
@@ -88,46 +91,20 @@ public static class OfflineBookingStorage
             cmd.ExecuteNonQuery();
         }
 
-        // Migrate existing Settings table to add new columns if they don't exist
-        try
-        {
-            // Check if columns exist and add them if missing
-            string checkColumn1 = "SELECT COUNT(*) FROM pragma_table_info('Settings') WHERE name='advance_payment_enabled'";
-            using (var cmd = new SqliteCommand(checkColumn1, connection))
-            {
-                var result = cmd.ExecuteScalar();
-                if (result != null && Convert.ToInt32(result) == 0)
-                {
-                    // Column doesn't exist, add it
-                    string alterTable1 = "ALTER TABLE Settings ADD COLUMN advance_payment_enabled INTEGER DEFAULT 0";
-                    using (var alterCmd = new SqliteCommand(alterTable1, connection))
-                    
-                    {
-                        alterCmd.ExecuteNonQuery();
-                        Logger.Log("Added column 'advance_payment_enabled' to Settings table");
-                    }
-                }
-            }
+        // Create HourlyPricing table for hour-based pricing tiers
+        string createHourlyPricingTable = @"
+        CREATE TABLE IF NOT EXISTS HourlyPricing (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id TEXT,
+            min_hours INTEGER,
+            max_hours INTEGER,
+            amount REAL,
+            last_synced TEXT
+        );";
 
-            string checkColumn2 = "SELECT COUNT(*) FROM pragma_table_info('Settings') WHERE name='default_advance_percentage'";
-            using (var cmd = new SqliteCommand(checkColumn2, connection))
-            {
-                var result = cmd.ExecuteScalar();
-                if (result != null && Convert.ToInt32(result) == 0)
-                {
-                    // Column doesn't exist, add it
-                    string alterTable2 = "ALTER TABLE Settings ADD COLUMN default_advance_percentage REAL DEFAULT 0";
-                    using (var alterCmd = new SqliteCommand(alterTable2, connection))
-                    {
-                        alterCmd.ExecuteNonQuery();
-                        Logger.Log("Added column 'default_advance_percentage' to Settings table");
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
+        using (var cmd = new SqliteCommand(createHourlyPricingTable, connection))
         {
-            Logger.LogError(ex);
+            cmd.ExecuteNonQuery();
         }
     }
 
@@ -330,24 +307,24 @@ public static class OfflineBookingStorage
             {
                 bookings.Add(new Booking1
                 {
-                    booking_id = reader["booking_id"]?.ToString(),
-                    worker_id = reader["worker_id"]?.ToString(),
-                    guest_name = reader["guest_name"]?.ToString(),
-                    phone_number = reader["phone_number"]?.ToString(),
+                    booking_id = reader["booking_id"]?.ToString() ?? string.Empty,
+                    worker_id = reader["worker_id"]?.ToString() ?? string.Empty,
+                    guest_name = reader["guest_name"]?.ToString() ?? string.Empty,
+                    phone_number = reader["phone_number"]?.ToString() ?? string.Empty   ,
                     number_of_persons = Convert.ToInt32(reader["number_of_persons"]),
-                    booking_type = reader["booking_type"]?.ToString(),
+                    booking_type = reader["booking_type"]?.ToString() ?? string.Empty,
                     total_hours = Convert.ToInt32(reader["total_hours"]),
-                    booking_date = DateTime.Parse(reader["booking_date"].ToString()),
-                    in_time = TimeSpan.Parse(reader["in_time"].ToString()),
+                    booking_date = DateTime.Parse(reader["booking_date"]?.ToString() ?? string.Empty) ,
+                    in_time = TimeSpan.Parse(reader["in_time"]?.ToString() ?? string.Empty) ,
                     out_time = TimeSpan.TryParse(reader["out_time"]?.ToString(), out var outT) ? outT : TimeSpan.Zero,
-                    proof_type = reader["proof_type"]?.ToString(),
-                    proof_id = reader["proof_id"]?.ToString(),
+                    proof_type = reader["proof_type"]?.ToString() ?? string.Empty,
+                    proof_id = reader["proof_id"]?.ToString() ?? string.Empty,
                     price_per_person = Convert.ToDecimal(reader["price_per_person"]),
                     total_amount = Convert.ToDecimal(reader["total_amount"]),
                     paid_amount = Convert.ToDecimal(reader["paid_amount"]),
                     balance_amount = Convert.ToDecimal(reader["balance_amount"]),
-                    payment_method = reader["payment_method"]?.ToString(),
-                    status = reader["status"]?.ToString(),
+                    payment_method = reader["payment_method"]?.ToString() ?? string.Empty,
+                    status = reader["status"]?.ToString() ?? string.Empty,
                 });
             }
         }
@@ -497,7 +474,7 @@ public static class OfflineBookingStorage
                 var checkoutRequest = new
                 {
                     booking_id = bookingId,
-                    out_time = outTime.ToString(@"hh\:mm\:ss"),  // Format as HH:mm:ss string
+                    out_time = outTime,  // Send as TimeSpan, not string
                     status = status,
                     payment_method = paymentMethod
                 };
@@ -580,7 +557,7 @@ public static class OfflineBookingStorage
             var checkoutRequest = new
             {
                 booking_id = bookingId,
-                out_time = outTime.ToString(@"hh\:mm\:ss"),
+                out_time = outTime,  // Send as TimeSpan, not string
                 status = status,
                 payment_method = paymentMethod
             };
@@ -636,11 +613,11 @@ public static class OfflineBookingStorage
         {
             bookings.Add(new Booking1
             {
-                booking_id = reader["booking_id"]?.ToString(),
-                worker_id = reader["worker_id"]?.ToString(),
-                guest_name = reader["guest_name"]?.ToString(),
-                phone_number = reader["phone_number"]?.ToString(),
-                booking_type = reader["booking_type"]?.ToString(),
+                booking_id = reader["booking_id"]?.ToString() ?? string.Empty,
+                worker_id = reader["worker_id"]?.ToString() ?? string.Empty,
+                guest_name = reader["guest_name"]?.ToString() ?? string.Empty,
+                phone_number = reader["phone_number"]?.ToString() ?? string.Empty,
+                booking_type = reader["booking_type"]?.ToString() ?? string.Empty,
                 number_of_persons = Convert.ToInt32(reader["number_of_persons"] ?? 0),
                 total_hours = Convert.ToInt32(reader["total_hours"] ?? 0),
                 price_per_person = Convert.ToDecimal(reader["price_per_person"] ?? 0),
@@ -649,7 +626,7 @@ public static class OfflineBookingStorage
                 balance_amount = Convert.ToDecimal(reader["balance_amount"] ?? 0),
                 in_time = TimeSpan.TryParse(reader["in_time"]?.ToString(), out var inT) ? inT : TimeSpan.Zero,
                 out_time = TimeSpan.TryParse(reader["out_time"]?.ToString(), out var outT) ? outT : TimeSpan.Zero,
-                status = reader["status"]?.ToString(),
+                status = reader["status"]?.ToString() ?? string.Empty,
                 created_at = reader["created_at"] != DBNull.Value && DateTime.TryParse(reader["created_at"]?.ToString(), out var createdAt) 
                     ? createdAt 
                     : (DateTime?)null
@@ -721,6 +698,7 @@ public static class OfflineBookingStorage
                             UPDATE Bookings 
                             SET status = 'completed', 
                                 out_time = @out_time,
+                                IsSynced = 3,
                                 updated_at = @updated_at 
                             WHERE booking_id = @id";
 
@@ -730,6 +708,8 @@ public static class OfflineBookingStorage
                         updateCmd.Parameters.AddWithValue("@updated_at", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                         updateCmd.ExecuteNonQuery();
                         updatedCount++;
+                        
+                        Logger.Log($"Booking {booking.booking_id} synced from server - marked as completed with IsSynced=3");
                     }
                 }
             }
@@ -756,13 +736,13 @@ public static class OfflineBookingStorage
     // Response model for completed bookings API
     private class CompletedBookingsResponse
     {
-        public CompletedBookingItem[] completedBookingIds { get; set; }
+        public required CompletedBookingItem[] completedBookingIds { get; set; }
     }
 
     private class CompletedBookingItem
     {
-        public string booking_id { get; set; }
-        public string out_time { get; set; }
+        public required string booking_id { get; set; }
+        public required string out_time { get; set; }
     }
 
     public static Booking1? GetBookingById(string bookingId)
@@ -782,24 +762,24 @@ public static class OfflineBookingStorage
         {
             return new Booking1
             {
-                booking_id = reader["booking_id"]?.ToString(),
-                worker_id = reader["worker_id"]?.ToString(),
-                guest_name = reader["guest_name"]?.ToString(),
-                phone_number = reader["phone_number"]?.ToString(),
+                booking_id = reader["booking_id"]?.ToString() ?? string.Empty,
+                worker_id = reader["worker_id"]?.ToString() ?? string.Empty,
+                guest_name = reader["guest_name"]?.ToString() ?? string.Empty,
+                phone_number = reader["phone_number"]?.ToString() ?? string.Empty,
                 number_of_persons = Convert.ToInt32(reader["number_of_persons"] ?? 0),
-                booking_type = reader["booking_type"]?.ToString(),
+                booking_type = reader["booking_type"]?.ToString() ?? string.Empty,
                 total_hours = Convert.ToInt32(reader["total_hours"] ?? 0),
                 booking_date = DateTime.TryParse(reader["booking_date"]?.ToString(), out var date) ? date : DateTime.Now,
                 in_time = TimeSpan.TryParse(reader["in_time"]?.ToString(), out var inT) ? inT : TimeSpan.Zero,
                 out_time = TimeSpan.TryParse(reader["out_time"]?.ToString(), out var outT) ? outT : null,
-                proof_type = reader["proof_type"]?.ToString(),
-                proof_id = reader["proof_id"]?.ToString(),
+                proof_type = reader["proof_type"]?.ToString() ?? string.Empty,
+                proof_id = reader["proof_id"]?.ToString() ?? string.Empty,
                 price_per_person = Convert.ToDecimal(reader["price_per_person"] ?? 0),
                 total_amount = Convert.ToDecimal(reader["total_amount"] ?? 0),
                 paid_amount = Convert.ToDecimal(reader["paid_amount"] ?? 0),
                 balance_amount = Convert.ToDecimal(reader["balance_amount"] ?? 0),
-                payment_method = reader["payment_method"]?.ToString(),
-                status = reader["status"]?.ToString(),
+                payment_method = reader["payment_method"]?.ToString() ?? string.Empty,
+                status = reader["status"]?.ToString() ?? string.Empty,
                 IsSynced = Convert.ToInt32(reader["IsSynced"] ?? 0)
             };
         }
@@ -877,7 +857,7 @@ public static class OfflineBookingStorage
             connection.Open();
 
             string select = "SELECT * FROM Bookings WHERE booking_id = @id";
-            Booking1 booking = null;
+            Booking1? booking = null;
 
             using (var cmd = new SqliteCommand(select, connection))
             {
@@ -889,24 +869,24 @@ public static class OfflineBookingStorage
                     {
                         booking = new Booking1
                         {
-                            booking_id = reader["booking_id"]?.ToString(),
-                            worker_id = reader["worker_id"]?.ToString(),
-                            guest_name = reader["guest_name"]?.ToString(),
-                            phone_number = reader["phone_number"]?.ToString(),
-                            number_of_persons = Convert.ToInt32(reader["number_of_persons"]),
-                            booking_type = reader["booking_type"]?.ToString(),
+                            booking_id = reader["booking_id"]?.ToString() ?? string.Empty,
+                            worker_id = reader["worker_id"]?.ToString() ?? string.Empty,
+                            guest_name = reader["guest_name"]?.ToString() ?? string.Empty,
+                            phone_number = reader["phone_number"]?.ToString() ?? string.Empty,
+                            number_of_persons = Convert.ToInt32(reader["number_of_persons"]) ,
+                            booking_type = reader["booking_type"]?.ToString() ?? string.Empty,
                             total_hours = Convert.ToInt32(reader["total_hours"]),
-                            booking_date = DateTime.Parse(reader["booking_date"].ToString()),
-                            in_time = TimeSpan.Parse(reader["in_time"].ToString()),
+                            booking_date = DateTime.Parse(reader["booking_date"].ToString() ?? string.Empty),
+                            in_time = TimeSpan.Parse(reader["in_time"].ToString() ?? string.Empty),
                             out_time = TimeSpan.TryParse(reader["out_time"]?.ToString(), out var outT) ? outT : TimeSpan.Zero,
-                            proof_type = reader["proof_type"]?.ToString(),
-                            proof_id = reader["proof_id"]?.ToString(),
+                            proof_type = reader["proof_type"]?.ToString() ?? string.Empty,
+                            proof_id = reader["proof_id"]?.ToString() ?? string.Empty,
                             price_per_person = Convert.ToDecimal(reader["price_per_person"]),
                             total_amount = Convert.ToDecimal(reader["total_amount"]),
                             paid_amount = Convert.ToDecimal(reader["paid_amount"]),
                             balance_amount = Convert.ToDecimal(reader["balance_amount"]),
-                            payment_method = reader["payment_method"]?.ToString(),
-                            status = reader["status"]?.ToString(),
+                            payment_method = reader["payment_method"]?.ToString() ?? string.Empty,
+                            status = reader["status"]?.ToString() ?? string.Empty,
                         };
                     }
                 }
@@ -969,8 +949,10 @@ public static class OfflineBookingStorage
         using var connection = new SqliteConnection($"Data Source={DbPath}");
         await connection.OpenAsync();
 
-        // 🔹 Step 1: Check if booking exists
-        string select = "SELECT status, total_amount, IsSynced FROM Bookings WHERE booking_id = @id";
+        // 🔹 Step 1: Check if booking exists and get in_time
+        string select = "SELECT status, total_amount, IsSynced, in_time FROM Bookings WHERE booking_id = @id";
+        TimeSpan inTime = TimeSpan.Zero;
+        
         using (var checkCmd = new SqliteCommand(select, connection))
         {
             checkCmd.Parameters.AddWithValue("@id", bookingId);
@@ -983,6 +965,12 @@ public static class OfflineBookingStorage
 
             string currentStatus = reader["status"]?.ToString()?.ToLower() ?? "";
             int isSynced = Convert.ToInt32(reader["IsSynced"]);
+            
+            // Parse in_time
+            if (TimeSpan.TryParse(reader["in_time"]?.ToString(), out TimeSpan parsedInTime))
+            {
+                inTime = parsedInTime;
+            }
 
             if (currentStatus == "completed")
             {
@@ -991,7 +979,20 @@ public static class OfflineBookingStorage
 
             reader.Close();
 
-            // 🔹 Step 2: Build update query conditionally
+            // 🔹 Step 2: Calculate actual total hours from in_time to out_time
+            int inMinutes = (int)inTime.TotalMinutes;
+            int outMinutes = (int)outTime.TotalMinutes;
+            int diffMinutes = outMinutes - inMinutes;
+            
+            // Handle next-day checkout
+            if (diffMinutes <= 0)
+            {
+                diffMinutes += 24 * 60; // Add 24 hours
+            }
+            
+            // Convert to hours and round up, minimum 1 hour
+            int actualTotalHours = Math.Max(1, (int)Math.Ceiling(diffMinutes / 60.0));
+            
             decimal balanceAmount = totalAmount - paidAmount;
             string updateQuery;
 
@@ -1001,6 +1002,7 @@ public static class OfflineBookingStorage
                 updateQuery = @"
                     UPDATE Bookings 
                     SET status = 'completed',
+                        total_hours = @total_hours,
                         paid_amount = @paid_amount,
                         total_amount = @total_amount,
                         balance_amount = @balance_amount,
@@ -1015,6 +1017,7 @@ public static class OfflineBookingStorage
                 updateQuery = @"
                     UPDATE Bookings 
                     SET status = 'completed',
+                        total_hours = @total_hours,
                         paid_amount = @paid_amount,
                         total_amount = @total_amount,
                         balance_amount = @balance_amount,
@@ -1032,6 +1035,7 @@ public static class OfflineBookingStorage
             using (var updateCmd = new SqliteCommand(updateQuery, connection))
             {
                 updateCmd.Parameters.AddWithValue("@booking_id", bookingId);
+                updateCmd.Parameters.AddWithValue("@total_hours", actualTotalHours);
                 updateCmd.Parameters.AddWithValue("@paid_amount", paidAmount);
                 updateCmd.Parameters.AddWithValue("@total_amount", totalAmount);
                 updateCmd.Parameters.AddWithValue("@balance_amount", balanceAmount);
@@ -1276,43 +1280,58 @@ public static class OfflineBookingStorage
             if (!response.IsSuccessStatusCode)
             {
                 string errorBody = await response.Content.ReadAsStringAsync();
-                // MessageBox.Show($"Failed to fetch hall types settings.\n\n" +
-                //     $"Status Code: {response.StatusCode}\n" +
-                //     $"Reason: {response.ReasonPhrase}\n\n" +
-                //     $"API URL: {fullUrl}\n\n" +
-                //     $"Response: {errorBody}", 
-                //     "API Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Failed to fetch hall types settings.\n\n" +
+                    $"Status Code: {response.StatusCode}\n" +
+                    $"Reason: {response.ReasonPhrase}\n\n" +
+                    $"API URL: {fullUrl}\n\n" +
+                    $"Response: {errorBody}", 
+                    "API Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
+            
+            // Show raw JSON response in MessageBox
+            MessageBox.Show($"📥 Raw API Response:\n\n{jsonResponse}", 
+                "API Data Received", MessageBoxButton.OK, MessageBoxImage.Information);
+            
             var hallTypesResponse = JsonConvert.DeserializeObject<HallTypesResponse>(jsonResponse);
 
-            if (hallTypesResponse == null || hallTypesResponse.Types == null)
+            if (hallTypesResponse == null)
             {
-                // MessageBox.Show($"Invalid response from server.\n\n" +
-                //     $"Response received:\n{jsonResponse}", 
-                //     "Deserialization Error", 
-                //     MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Invalid response from server.\n\n" +
+                    $"Response received:\n{jsonResponse}", 
+                    "Deserialization Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
 
             // Save to local database (save types + advance settings)
             SaveSettings(adminId, hallTypesResponse);
 
-            string typesInfo = string.Join("\n", hallTypesResponse.Types.Select(t => $"• {t.Type}: ₹{t.Amount}"));
-            string hallNameDisplay = !string.IsNullOrEmpty(hallTypesResponse.HallName) 
-                ? hallTypesResponse.HallName 
-                : "Not Available";
+            // Build types info display
+            var typesInfo = new List<string>();
+            if (!string.IsNullOrEmpty(hallTypesResponse.Type1) && hallTypesResponse.Type1Amount.HasValue)
+                typesInfo.Add($"• {hallTypesResponse.Type1}: ₹{hallTypesResponse.Type1Amount.Value}");
+            if (!string.IsNullOrEmpty(hallTypesResponse.Type2))
+            {
+                if (hallTypesResponse.GraceAmount.HasValue)
+                    typesInfo.Add($"• {hallTypesResponse.Type2}: ₹{hallTypesResponse.GraceAmount.Value} (Grace Amount)");
+                if (hallTypesResponse.GraceAmountType2.HasValue)
+                    typesInfo.Add($"  - Grace Amount Type 2: ₹{hallTypesResponse.GraceAmountType2.Value}");
+            }
             
-            // MessageBox.Show($"✅ Settings Loaded Successfully!\n\n" +
-            //     $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-            //     $"Hall Name: {hallNameDisplay}\n" +
-            //     $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-            //     $"Booking Types ({hallTypesResponse.Types.Count}):\n{typesInfo}\n\n" +
-            //     $"Advance Payment: {(hallTypesResponse.AdvancePaymentEnabled ? "Enabled" : "Disabled")}\n" +
-            //     $"Default Advance: {hallTypesResponse.DefaultAdvancePercentage}%", 
-            //     "Settings Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+            string typesDisplay = typesInfo.Count > 0 ? string.Join("\n", typesInfo) : "No types configured";
+            string advanceDisplay = hallTypesResponse.AdvancePayment.HasValue 
+                ? $"{hallTypesResponse.AdvancePayment.Value}%" 
+                : "Not Set";
+            
+            MessageBox.Show($"✅ Settings Loaded Successfully!\n\n" +
+                $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                $"Booking Types ({typesInfo.Count}):\n{typesDisplay}\n\n" +
+                $"Advance Payment: {(hallTypesResponse.AdvancePaymentEnabled ? "Enabled" : "Disabled")}\n" +
+                $"Default Advance: {advanceDisplay}", 
+                "Settings Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
 
             return true;
         }
@@ -1328,21 +1347,21 @@ public static class OfflineBookingStorage
         }
         catch (JsonException ex)
         {
-            // MessageBox.Show($"❌ JSON Parse Error\n\n" +
-            //     $"Message: {ex.Message}\n\n" +
-            //     $"The API response format doesn't match the expected structure.\n" +
-            //     $"Check the API documentation or logs for details.", 
-            //     "Data Format Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"❌ JSON Parse Error\n\n" +
+                $"Message: {ex.Message}\n\n" +
+                $"The API response format doesn't match the expected structure.\n" +
+                $"Check the API documentation or logs for details.", 
+                "Data Format Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Logger.LogError(ex);
             return false;
         }
         catch (Exception ex)
         {
-            // MessageBox.Show($"❌ Unexpected Error\n\n" +
-            //     $"Error Type: {ex.GetType().Name}\n" +
-            //     $"Message: {ex.Message}\n\n" +
-            //     $"Stack Trace:\n{ex.StackTrace}", 
-            //     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"❌ Unexpected Error\n\n" +
+                $"Error Type: {ex.GetType().Name}\n" +
+                $"Message: {ex.Message}\n\n" +
+                $"Stack Trace:\n{ex.StackTrace}", 
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Logger.LogError(ex);
             return false;
         }
@@ -1353,13 +1372,6 @@ public static class OfflineBookingStorage
         using var connection = new SqliteConnection($"Data Source={DbPath}");
         connection.Open();
 
-        // Save hall_name to LocalStorage (not in database)
-        if (!string.IsNullOrEmpty(response.HallName))
-        {
-            LocalStorage.SetItem("hallName", response.HallName, TimeSpan.FromHours(8));
-            Logger.Log($"Hall name saved to LocalStorage: {response.HallName}");
-        }
-
         // Clear existing settings
         string deleteQuery = "DELETE FROM Settings";
         using (var deleteCmd = new SqliteCommand(deleteQuery, connection))
@@ -1367,37 +1379,34 @@ public static class OfflineBookingStorage
             deleteCmd.ExecuteNonQuery();
         }
 
-        // Prepare insert query (store up to 4 types and advance settings)
+        // Prepare insert query (store 2 types and advance settings)
         string insertQuery = @"
-            INSERT INTO Settings (admin_id, type1, type1_amount, type2, type2_amount, 
-                                 type3, type3_amount, type4, type4_amount, advance_payment_enabled, default_advance_percentage, last_synced)
-            VALUES (@admin_id, @type1, @type1_amount, @type2, @type2_amount, 
-                   @type3, @type3_amount, @type4, @type4_amount, @advance_payment_enabled, @default_advance_percentage, @last_synced)";
+            INSERT INTO Settings (admin_id, type_1, type_1_amount, type_2, type_2_amount, 
+                                 advance_payment_enabled, default_advance_percentage, last_synced)
+            VALUES (@admin_id, @type_1, @type_1_amount, @type_2, @type_2_amount, 
+                   @advance_payment_enabled, @default_advance_percentage, @last_synced)";
 
         using var cmd = new SqliteCommand(insertQuery, connection);
         cmd.Parameters.AddWithValue("@admin_id", adminId);
 
-        // Add up to 4 types
-        for (int i = 0; i < 4; i++)
-        {
-            if (i < response.Types.Count)
-            {
-                cmd.Parameters.AddWithValue($"@type{i + 1}", response.Types[i].Type ?? (object)DBNull.Value);
-                cmd.Parameters.AddWithValue($"@type{i + 1}_amount", (object)response.Types[i].Amount);
-            }
-            else
-            {
-                cmd.Parameters.AddWithValue($"@type{i + 1}", DBNull.Value);
-                cmd.Parameters.AddWithValue($"@type{i + 1}_amount", DBNull.Value);
-            }
-        }
+        // Add type_1 and type_1_amount
+        cmd.Parameters.AddWithValue("@type_1", response.Type1 ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@type_1_amount", response.Type1Amount ?? (object)DBNull.Value);
+
+        // Add type_2 and grace_amount (as type_2_amount)
+        cmd.Parameters.AddWithValue("@type_2", response.Type2 ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@type_2_amount", response.GraceAmount ?? (object)DBNull.Value);
 
         cmd.Parameters.AddWithValue("@advance_payment_enabled", response.AdvancePaymentEnabled ? 1 : 0);
-    cmd.Parameters.AddWithValue("@default_advance_percentage", (object)response.DefaultAdvancePercentage);
+        cmd.Parameters.AddWithValue("@default_advance_percentage", response.AdvancePayment ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@last_synced", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         cmd.ExecuteNonQuery();
 
-        Logger.Log($"Settings saved for admin_id: {adminId} with {response.Types.Count} hall types, advance_enabled={response.AdvancePaymentEnabled}, default_adv_pct={response.DefaultAdvancePercentage}");
+        int type1Exists = !string.IsNullOrEmpty(response.Type1) ? 1 : 0;
+        int type2Exists = !string.IsNullOrEmpty(response.Type2) ? 1 : 0;
+        int totalTypes = type1Exists + type2Exists;
+        
+        Logger.Log($"Settings saved for admin_id: {adminId} with {totalTypes} hall types, advance_enabled={response.AdvancePaymentEnabled}, default_adv_pct={response.AdvancePayment ?? 0}");
     }
 
     private static void DeleteExpiredSettings()
@@ -1427,6 +1436,99 @@ public static class OfflineBookingStorage
         }
     }
 
+    // Fetch and save printer details from API
+    public static async Task<bool> FetchAndSavePrinterDetailsAsync(string adminId, string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Settings/printer-details")
+    {
+        try
+        {
+            using var client = new HttpClient();
+            
+            string fullUrl = $"{apiUrl}/{adminId}";
+            var response = await client.GetAsync(fullUrl);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.Log($"Failed to fetch printer details: {response.StatusCode}");
+                return false;
+            }
+
+            string jsonResponse = await response.Content.ReadAsStringAsync();
+            var printerDetails = JsonConvert.DeserializeObject<PrinterDetailsResponse>(jsonResponse);
+
+            if (printerDetails == null)
+            {
+                Logger.Log("Invalid printer details response from server");
+                return false;
+            }
+
+            // Save to LocalStorage (valid for 8 hours)
+            LocalStorage.SetItem("printerHeading1", printerDetails.Heading1 ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("printerHeading2", printerDetails.Heading2 ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("printerInfo1", printerDetails.Info1 ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("printerInfo2", printerDetails.Info2 ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("printerNote", printerDetails.Note ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("hallName", printerDetails.HallName ?? "", TimeSpan.FromHours(8));
+            LocalStorage.SetItem("printerLogoUrl", printerDetails.LogoUrl ?? "", TimeSpan.FromHours(8));
+
+            Logger.Log($"Printer details saved for hall: {printerDetails.HallName}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex);
+            return false;
+        }
+    }
+
+    // Fetch Type2 (sleeping) details from API
+    public static async Task<List<Type2Detail>> FetchType2DetailsAsync(string adminId, string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Settings/sleeping-details")
+    {
+        try
+        {
+            using var client = new HttpClient();
+            
+            string fullUrl = $"{apiUrl}/{adminId}";
+            var response = await client.GetAsync(fullUrl);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.Log($"Failed to fetch Type2 details: {response.StatusCode}");
+                return new List<Type2Detail>();
+            }
+
+            string jsonResponse = await response.Content.ReadAsStringAsync();
+            var type2Details = JsonConvert.DeserializeObject<List<Type2Detail>>(jsonResponse);
+
+            if (type2Details == null || type2Details.Count == 0)
+            {
+                Logger.Log("No Type2 details found");
+                return new List<Type2Detail>();
+            }
+
+            Logger.Log($"Fetched {type2Details.Count} Type2 pricing tiers");
+            return type2Details;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex);
+            return new List<Type2Detail>();
+        }
+    }
+
+    // Get printer details from LocalStorage
+    public static (string heading1, string heading2, string info1, string info2, string note, string hallName, string logoUrl) GetPrinterDetails()
+    {
+        return (
+            LocalStorage.GetItem("printerHeading1") ?? "Railway Booking",
+            LocalStorage.GetItem("printerHeading2") ?? "",
+            LocalStorage.GetItem("printerInfo1") ?? "",
+            LocalStorage.GetItem("printerInfo2") ?? "",
+            LocalStorage.GetItem("printerNote") ?? "Thank you for your visit!",
+            LocalStorage.GetItem("hallName") ?? "Railway Hall",
+            LocalStorage.GetItem("printerLogoUrl") ?? ""
+        );
+    }
+
     public static Settings? GetSettings()
     {
         try
@@ -1443,18 +1545,20 @@ public static class OfflineBookingStorage
 
             if (reader.Read())
             {
+                Logger.Log($"GetSettings: Found settings record - type_1={reader["type_1"]}, type_2={reader["type_2"]}");
+                
                 var settings = new Settings
                 {
                     Id = Convert.ToInt32(reader["id"]),
                     AdminId = reader["admin_id"]?.ToString() ?? "",
-                    Type1 = reader["type1"]?.ToString(),
-                    Type1Amount = reader["type1_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type1_amount"]) : null,
-                    Type2 = reader["type2"]?.ToString(),
-                    Type2Amount = reader["type2_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type2_amount"]) : null,
-                    Type3 = reader["type3"]?.ToString(),
-                    Type3Amount = reader["type3_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type3_amount"]) : null,
-                    Type4 = reader["type4"]?.ToString(),
-                    Type4Amount = reader["type4_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type4_amount"]) : null,
+                    Type1 = reader["type_1"]?.ToString(),
+                    Type1Amount = reader["type_1_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type_1_amount"]) : null,
+                    Type2 = reader["type_2"]?.ToString(),
+                    Type2Amount = reader["type_2_amount"] != DBNull.Value ? Convert.ToDecimal(reader["type_2_amount"]) : null,
+                    Type3 = null,
+                    Type3Amount = null,
+                    Type4 = null,
+                    Type4Amount = null,
                     AdvancePaymentEnabled = reader["advance_payment_enabled"] != DBNull.Value && Convert.ToInt32(reader["advance_payment_enabled"]) == 1,
                     DefaultAdvancePercentage = reader["default_advance_percentage"] != DBNull.Value ? Convert.ToDecimal(reader["default_advance_percentage"]) : 0m,
                     LastSynced = DateTime.TryParse(reader["last_synced"]?.ToString(), out var date) 
@@ -1464,14 +1568,18 @@ public static class OfflineBookingStorage
                 // Double-check if this setting is still valid (within 8 hours)
                 if ((DateTime.Now - settings.LastSynced).TotalHours >= 8)
                 {
-                    Logger.Log("Settings expired, returning null");
+                    Logger.Log("GetSettings: Settings expired (older than 8 hours), returning null");
                     return null;
                 }
 
+                Logger.Log($"GetSettings: Returning settings - Type1={settings.Type1}, Type2={settings.Type2}");
                 return settings;
             }
 
+            Logger.Log("GetSettings: No settings found in database");
             return null;
+
+            
         }
         catch (Exception ex)
         {
@@ -1486,27 +1594,71 @@ public static class OfflineBookingStorage
 
         try
         {
+            Logger.Log("GetBookingTypes: Fetching settings...");
             var settings = GetSettings();
-            if (settings == null) return types;
+            
+            if (settings == null)
+            {
+                Logger.Log("GetBookingTypes: Settings is null - no settings found in database");
+                return types;
+            }
+
+            Logger.Log($"GetBookingTypes: Settings found - Type1={settings.Type1}, Type1Amount={settings.Type1Amount}, Type2={settings.Type2}, Type2Amount={settings.Type2Amount}");
 
             if (!string.IsNullOrEmpty(settings.Type1) && settings.Type1Amount.HasValue)
+            {
                 types.Add(new BookingType { Type = settings.Type1, Amount = settings.Type1Amount.Value });
+                Logger.Log($"Added Type1: {settings.Type1} = ₹{settings.Type1Amount.Value}");
+            }
 
             if (!string.IsNullOrEmpty(settings.Type2) && settings.Type2Amount.HasValue)
+            {
                 types.Add(new BookingType { Type = settings.Type2, Amount = settings.Type2Amount.Value });
+                Logger.Log($"Added Type2: {settings.Type2} = ₹{settings.Type2Amount.Value}");
+            }
 
-            if (!string.IsNullOrEmpty(settings.Type3) && settings.Type3Amount.HasValue)
-                types.Add(new BookingType { Type = settings.Type3, Amount = settings.Type3Amount.Value });
+            Logger.Log($"GetBookingTypes: Returning {types.Count} booking types");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex);
+            Logger.Log($"GetBookingTypes: Error - {ex.Message}");
+        }
 
-            if (!string.IsNullOrEmpty(settings.Type4) && settings.Type4Amount.HasValue)
-                types.Add(new BookingType { Type = settings.Type4, Amount = settings.Type4Amount.Value });
+        return types;
+    }
+
+    public static List<HourlyPricingTier> GetHourlyPricingTiers()
+    {
+        var tiers = new List<HourlyPricingTier>();
+
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={DbPath}");
+            connection.Open();
+
+            string query = "SELECT * FROM HourlyPricing ORDER BY min_hours";
+            using var cmd = new SqliteCommand(query, connection);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                tiers.Add(new HourlyPricingTier
+                {
+                    Id = Convert.ToInt32(reader["id"]),
+                    AdminId = reader["admin_id"]?.ToString() ?? "",
+                    MinHours = Convert.ToInt32(reader["min_hours"]),
+                    MaxHours = Convert.ToInt32(reader["max_hours"]),
+                    Amount = Convert.ToDecimal(reader["amount"])
+                });
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex);
         }
 
-        return types;
+        return tiers;
     }
 
     public static decimal GetBookingTypeAmount(string typeName)
@@ -1550,16 +1702,22 @@ public static class OfflineBookingStorage
             if (response.IsSuccessStatusCode)
             {
                 // Update IsSynced to 1 in local database
-                UpdateBookingSyncStatus(booking.booking_id, 1);
-                Logger.Log($"Booking {booking.booking_id} synced successfully to server.");
+                if (!string.IsNullOrEmpty(booking.booking_id))
+                {
+                    UpdateBookingSyncStatus(booking.booking_id, 1);
+                    Logger.Log($"Booking {booking.booking_id} synced successfully to server.");
+                }
                 return true;
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 // 409 Conflict - booking already exists on server
                 // Mark as synced locally
-                UpdateBookingSyncStatus(booking.booking_id, 1);
-                Logger.Log($"Booking {booking.booking_id} already exists on server. Marked as synced locally.");
+                if (!string.IsNullOrEmpty(booking.booking_id))
+                {
+                    UpdateBookingSyncStatus(booking.booking_id, 1);
+                    Logger.Log($"Booking {booking.booking_id} already exists on server. Marked as synced locally.");
+                }
                 return true;
             }
             else

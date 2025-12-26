@@ -39,6 +39,9 @@ namespace UserModule
         {
             InitializeComponent();
 
+            // Add keyboard shortcut for direct print (Ctrl+Shift+P)
+            this.PreviewKeyDown += NewBooking_PreviewKeyDown;
+
             // Initialize Enter reset timer
             enterResetTimer.Interval = TimeSpan.FromSeconds(2); // Reset after 2 seconds of inactivity
             enterResetTimer.Tick += (s, e) =>
@@ -413,7 +416,7 @@ namespace UserModule
                 if (cmbIdType.SelectedItem == null || cmbIdType.SelectedItem == idPlaceholder)
                     return false;
 
-                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString() ?? string.Empty;
                 string idValue = txtIdNumber.Text.Trim();
 
                 switch (selectedIdType)
@@ -540,7 +543,7 @@ namespace UserModule
                     return;
                 }
 
-                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+                string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString() ?? string.Empty;
 
                 switch (selectedIdType)
                 {
@@ -631,7 +634,7 @@ namespace UserModule
                 if (e.DataObject.GetDataPresent(DataFormats.Text))
                 {
                     string pastedText = (e.DataObject.GetData(DataFormats.Text) as string) ?? string.Empty;
-                    string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString();
+                    string selectedIdType = ((ComboBoxItem)cmbIdType.SelectedItem).Content.ToString() ?? string.Empty;
 
                     bool isValid = selectedIdType switch
                     {
@@ -847,7 +850,7 @@ namespace UserModule
                 decimal totalAmount = decimal.TryParse(txtTotalAmount.Text, out var t) ? t : 0;
                 decimal balance = totalAmount - paidAmount;
 
-                string workerId = LocalStorage.GetItem("workerId");
+                string? workerId = LocalStorage.GetItem("workerId");
 
                 var booking = new Booking1
                 {
@@ -886,18 +889,8 @@ namespace UserModule
                 lblIdInput.Text = "Enter ID Number";
                 txtIdNumber.Text = string.Empty;
 
-                // --- Print Bill ---
-                PrinterHelper.PrintBill(
-                    billId: billId,
-                    customerName: customerName,
-                    seatType: seatType,
-                    totalHours: totalHours,
-                    persons: persons,
-                    rate: rate,
-                    totalAmount: totalAmount,
-                    paidAmount: paidAmount,
-                    balance: balance
-                );
+                // --- Direct Print (No Preview) ---
+                PrintBillDirectly(booking);
             }
             catch (Exception ex)
             {
@@ -911,6 +904,64 @@ namespace UserModule
                 
                 // Re-enable button after operation completes
                 GenerateBillButton.IsEnabled = true;
+            }
+        }
+
+        // Handle Ctrl+Shift+P shortcut for direct print
+        private void NewBooking_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.P)
+            {
+                e.Handled = true;
+                DirectPrintSampleBill();
+            }
+        }
+
+        // Direct print without preview
+        private void DirectPrintSampleBill()
+        {
+            try
+            {
+                // Create a sample booking for print preview
+                var sampleBooking = new Booking1
+                {
+                    booking_id = "SAMPLE123456",
+                    guest_name = "Sample Customer",
+                    phone_number = "9876543210",
+                    number_of_persons = 2,
+                    booking_type = "standard",
+                    total_hours = 3,
+                    price_per_person = 100,
+                    total_amount = 600,
+                    paid_amount = 300,
+                    balance_amount = 300
+                };
+
+                PrintBillDirectly(sampleBooking);
+            }
+            catch (Exception ex)
+            {
+                ShowAlert("error", $"Failed to print sample bill: {ex.Message}");
+                Logger.LogError(ex);
+            }
+        }
+
+        // Print bill directly without preview
+        private void PrintBillDirectly(Booking1 booking)
+        {
+            try
+            {
+                bool printed = ReceiptHelper.GenerateAndPrintReceipt(booking);
+                
+                if (!printed)
+                {
+                    ShowAlert("warning", "Failed to print receipt. Please check printer connection.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+                ShowAlert("error", $"Print error: {ex.Message}");
             }
         }
 
@@ -1003,9 +1054,16 @@ namespace UserModule
             }
 
             // Validate Persons
-            if (string.IsNullOrWhiteSpace(txtPersons.Text) || !int.TryParse(txtPersons.Text, out _))
+            if (string.IsNullOrWhiteSpace(txtPersons.Text) || !int.TryParse(txtPersons.Text, out int persons))
             {
                 errPersons.Visibility = Visibility.Visible;
+                isValid = false;
+            }
+            else if (persons <= 0 || persons > 300)
+            {
+                errPersons.Visibility = Visibility.Visible;
+                MessageBox.Show("Number of persons must be between 1 and 300.", 
+                    "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
                 isValid = false;
             }
 
@@ -1056,7 +1114,13 @@ namespace UserModule
             // Validate Advance Amount (only if visible and enabled)
             if (pnlAdvanceAmount.Visibility == Visibility.Visible)
             {
-                if (string.IsNullOrWhiteSpace(txtPaid.Text) || !decimal.TryParse(txtPaid.Text, out decimal paid) || paid < 0)
+                // Default to 0 if empty
+                if (string.IsNullOrWhiteSpace(txtPaid.Text))
+                {
+                    txtPaid.Text = "0";
+                }
+                
+                if (!decimal.TryParse(txtPaid.Text, out decimal paid) || paid < 0)
                 {
                     errPaid.Visibility = Visibility.Visible;
                     isValid = false;
@@ -1522,11 +1586,8 @@ namespace UserModule
                 }
                 else
                 {
-                    // No booking types found - show warning
-                    MessageBox.Show("No booking types found in database.",
-                        "No Booking Types", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    
-                    Logger.Log("No booking types found in database");
+                    // No booking types found - just log it, don't show popup
+                    Logger.Log("No booking types found in database settings. User needs to login to fetch settings.");
                 }
 
                 // Reset selection to placeholder
@@ -1634,32 +1695,9 @@ namespace UserModule
                 decimal finalTotal = baseTotal - discount;
                 txtTotalAmount.Text = finalTotal.ToString("0.00");
 
-                // Calculate advance payment if enabled
-                var settings = OfflineBookingStorage.GetSettings();
-                if (settings != null && settings.AdvancePaymentEnabled && finalTotal > 0)
-                {
-                    decimal advancePercentage = settings.DefaultAdvancePercentage;
-                    decimal calculatedAdvance = (finalTotal * advancePercentage) / 100;
-                    
-                    // Advance amount cannot exceed final total
-                    decimal advanceAmount = Math.Min(calculatedAdvance, finalTotal);
-                    
-                    txtPaid.Text = advanceAmount.ToString("0.00");
-                    
-                    if (calculatedAdvance > finalTotal)
-                    {
-                        Logger.Log($"Advance amount capped at total: {advanceAmount} (calculated: {calculatedAdvance}, percentage: {advancePercentage}%)");
-                    }
-                    else
-                    {
-                        Logger.Log($"Calculated advance: {advanceAmount} ({advancePercentage}% of {finalTotal})");
-                    }
-                }
-                else if (pnlAdvanceAmount.Visibility == Visibility.Visible)
-                {
-                    // If advance is visible but final total is 0, set advance to 0
-                    txtPaid.Text = "0.00";
-                }
+                // ADVANCE AMOUNT ALWAYS SET TO 0 (calculation disabled)
+                // Users can manually enter advance amount if needed
+                txtPaid.Text = "";
             }
             catch (Exception ex)
             {

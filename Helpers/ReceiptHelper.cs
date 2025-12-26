@@ -31,7 +31,7 @@ namespace UserModule
 
             int stride = pixelData.Width * 4;
             return BitmapSource.Create(pixelData.Width, pixelData.Height,
-                96, 96, PixelFormats.Bgra32, null, pixelData.Pixels, stride);
+                300, 300, PixelFormats.Bgra32, null, pixelData.Pixels, stride);
         }
 
         private static UIElement BuildReceiptVisual(
@@ -41,9 +41,17 @@ namespace UserModule
             int totalHours,
             int persons,
             double ratePerPerson,
-            double paidAmount)
+            double paidAmount,
+            double extraCharges = 0,
+            string heading1 = "Railway Booking",
+            string heading2 = "",
+            string info1 = "",
+            string info2 = "",
+            string note = "Thank you for your visit!",
+            string hallName = "")
         {
-            double totalAmount = ratePerPerson * persons * Math.Max(1, totalHours);
+            double baseAmount = ratePerPerson * persons * Math.Max(1, totalHours);
+            double totalAmount = baseAmount + extraCharges;
             double balance = totalAmount - paidAmount;
 
             // Root panel
@@ -61,62 +69,136 @@ namespace UserModule
 
             var stack = (StackPanel)root.Child;
 
-            // Header
-            stack.Children.Add(new TextBlock
+            // Header - Heading 1
+            if (!string.IsNullOrWhiteSpace(heading1))
             {
-                Text = "Erode Railway",
-                FontSize = 18,
-                FontWeight = FontWeights.Bold,
-                TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 6)
-            });
+                stack.Children.Add(new TextBlock
+                {
+                    Text = heading1,
+                    FontSize = 16,
+                    FontWeight = FontWeights.Bold,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+            }
 
-            // Bill meta
-            stack.Children.Add(new TextBlock
+            // Header - Heading 2
+            if (!string.IsNullOrWhiteSpace(heading2))
             {
-                Text = $"Bill ID: {billId}",
-                FontSize = 12,
-                Foreground = Brushes.Black
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"Name: {customerName}",
-                FontSize = 12,
-                Foreground = Brushes.Black
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"Phone: {phoneNo}",
-                FontSize = 12,
-                Foreground = Brushes.Black,
-                Margin = new Thickness(0, 0, 0, 6)
-            });
+                stack.Children.Add(new TextBlock
+                {
+                    Text = heading2,
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+            }
 
-            // Separator
+            // Info 1
+            if (!string.IsNullOrWhiteSpace(info1))
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = info1,
+                    FontSize = 10,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 1)
+                });
+            }
+
+            // Info 2
+            if (!string.IsNullOrWhiteSpace(info2))
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = info2,
+                    FontSize = 10,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 6)
+                });
+            }
+
+            // Hall Name (if provided)
+            if (!string.IsNullOrWhiteSpace(hallName))
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = hallName,
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 6)
+                });
+            }
+
+            // Separator after header
             stack.Children.Add(new Separator { Margin = new Thickness(0, 6, 0, 6) });
 
-            // Details grid
-            var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            void AddRow(string label, string value)
+            // Helper function to add key-value rows
+            void AddRow(string label, string value, bool isLast = false)
             {
-                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-                var left = new TextBlock { Text = label, FontSize = 13 };
-                var right = new TextBlock { Text = value, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Right };
+                var row = new StackPanel 
+                { 
+                    Orientation = Orientation.Horizontal, 
+                    Margin = new Thickness(0, 0, 0, isLast ? 6 : 4),
+                    HorizontalAlignment = HorizontalAlignment.Stretch
+                };
+                
+                var left = new TextBlock 
+                { 
+                    Text = label.PadRight(20), 
+                    FontSize = 12,
+                    FontFamily = new FontFamily("Consolas, Courier New")
+                };
+                
+                var colon = new TextBlock 
+                { 
+                    Text = ": ", 
+                    FontSize = 12,
+                    FontFamily = new FontFamily("Consolas, Courier New")
+                };
+                
+                var right = new TextBlock 
+                { 
+                    Text = value, 
+                    FontSize = 12,
+                    FontFamily = new FontFamily("Consolas, Courier New")
+                };
+                
                 row.Children.Add(left);
-                row.Children.Add(new StackPanel { Width = 8 }); // spacer
+                row.Children.Add(colon);
                 row.Children.Add(right);
                 stack.Children.Add(row);
             }
 
-            AddRow("Total Hours", totalHours.ToString());
+            // Customer details in key-value format
+            AddRow("Name", customerName);
+            AddRow("Phone", phoneNo);
             AddRow("Persons", persons.ToString());
+
+            // Separator
+            stack.Children.Add(new Separator { Margin = new Thickness(0, 6, 0, 6) });
+
+            // Billing details
+            AddRow("Total Hours", totalHours.ToString());
             AddRow("Rate / Person", $"₹{ratePerPerson}");
+            AddRow("Base Amount", $"₹{baseAmount}");
+            
+            // Show extra charges if any
+            if (extraCharges > 0)
+            {
+                AddRow("Extra Charges", $"₹{extraCharges}");
+            }
+            
             AddRow("Total Amount", $"₹{totalAmount}");
             AddRow("Paid Amount", $"₹{paidAmount}");
-            AddRow("Balance", $"₹{balance}");
+            AddRow("Balance", $"₹{balance}", true);
 
             // Space before barcode
             stack.Children.Add(new StackPanel { Height = 8 });
@@ -138,13 +220,30 @@ namespace UserModule
                 FontSize = 11,
                 Foreground = Brushes.Gray,
                 TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 0)
             });
+
+            // Note at the bottom
+            if (!string.IsNullOrWhiteSpace(note))
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = $"Note: {note}",
+                    FontSize = 10,
+                    FontStyle = FontStyles.Italic,
+                    Foreground = Brushes.Gray,
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 8, 0, 0)
+                });
+            }
 
             return root;
         }
 
-        public static bool GenerateAndPrintReceipt(Booking1 booking, string savePngPath = null)
+        public static bool GenerateAndPrintReceipt(Booking1 booking, string? savePngPath = null, double extraCharges = 0)
         {
             if (booking == null) throw new ArgumentNullException(nameof(booking));
 
@@ -154,6 +253,9 @@ namespace UserModule
             double rate = Convert.ToDouble(booking.price_per_person);
             double paid = Convert.ToDouble(booking.paid_amount);
 
+            // Get printer details from storage
+            var printerDetails = OfflineBookingStorage.GetPrinterDetails();
+
             var visual = BuildReceiptVisual(
                 billId: booking.booking_id ?? "N/A",
                 customerName: booking.guest_name ?? "",
@@ -161,7 +263,14 @@ namespace UserModule
                 totalHours: hours,
                 persons: persons,
                 ratePerPerson: rate,
-                paidAmount: paid
+                paidAmount: paid,
+                extraCharges: extraCharges,
+                heading1: printerDetails.heading1,
+                heading2: printerDetails.heading2,
+                info1: printerDetails.info1,
+                info2: printerDetails.info2,
+                note: printerDetails.note,
+                hallName: printerDetails.hallName
             );
 
             // Optionally save to PNG file for record
@@ -171,7 +280,7 @@ namespace UserModule
                 {
                     SaveVisualToPng(visual, savePngPath);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // swallow or log — saving is optional
                     MessageBox.Show($"Failed to save receipt PNG", "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -199,7 +308,7 @@ namespace UserModule
             visual.Arrange(new Rect(new Size(width, height)));
             visual.UpdateLayout();
 
-            var rtb = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32);
+            var rtb = new RenderTargetBitmap((int)width, (int)height, 300, 300, PixelFormats.Pbgra32);
             rtb.Render(visual);
 
             // Trim transparent bottom if you want (left as-is for simplicity)

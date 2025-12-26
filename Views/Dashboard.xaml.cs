@@ -35,7 +35,7 @@ namespace UserModule
                 DateTextBlock.Text = DateTime.Now.ToString("MMMM d, yyyy");
 
                 // Get username from LocalStorage instead of hardcoded "User"
-                string username = LocalStorage.GetItem("username");
+                string? username = LocalStorage.GetItem("username");
                 if (string.IsNullOrEmpty(username))
                 {
                     username = "User"; // Fallback if not found
@@ -407,7 +407,7 @@ namespace UserModule
                         activeCount++;
                         
                         // Count by type (only for active bookings) - case-insensitive comparison
-                        string bookingType = booking.booking_type?.Trim();
+                        string? bookingType = booking.booking_type?.Trim();
                         if (!string.IsNullOrEmpty(bookingType))
                         {
                             // Find matching key in dictionary (case-insensitive)
@@ -657,7 +657,7 @@ namespace UserModule
                 RefreshButton.Opacity = 0.5;
 
                 // Get current worker ID
-                string workerId = LocalStorage.GetItem("workerId");
+                string? workerId = LocalStorage.GetItem("workerId");
                 if (string.IsNullOrEmpty(workerId))
                 {
                     MessageBox.Show("Worker ID not found. Please log in again.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -700,15 +700,15 @@ namespace UserModule
             if (value == null)
                 return string.Empty;
 
-            string bookingId = value.ToString();
+            string? bookingId = value.ToString();
             
             // Return last 6 digits if the ID is longer than 6 characters
-            if (bookingId.Length > 6)
+            if (bookingId != null && bookingId.Length > 6)
             {
                 return bookingId.Substring(bookingId.Length - 6);
             }
             
-            return bookingId;
+            return bookingId ?? string.Empty;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

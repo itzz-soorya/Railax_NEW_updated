@@ -180,7 +180,7 @@ namespace UserModule
             var popupText = new TextBlock
             {
                 Text = $"{greeting}, {capitalizedUsername}! Welcome Back. Have a good day!!",
-                Foreground = (Brush)new BrushConverter().ConvertFromString("#28C76F"),
+                Foreground = (Brush?)new BrushConverter().ConvertFromString("#28C76F") ?? new SolidColorBrush(Color.FromRgb(40, 199, 111)),
                 FontFamily = new FontFamily("Segoe UI Semibold"),
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 14

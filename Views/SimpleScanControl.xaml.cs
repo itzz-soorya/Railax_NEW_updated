@@ -96,6 +96,25 @@ namespace UserModule
             }
         }
 
+        private int CalculateActualHours(TimeSpan inTime, TimeSpan outTime)
+        {
+            // Convert to minutes
+            int inMinutes = (int)(inTime.TotalMinutes);
+            int outMinutes = (int)(outTime.TotalMinutes);
+
+            // Calculate difference
+            int diffMinutes = outMinutes - inMinutes;
+
+            // Handle next-day checkout
+            if (diffMinutes <= 0)
+            {
+                diffMinutes += 24 * 60; // Add 24 hours
+            }
+
+            // Convert to hours and round up, minimum 1 hour
+            return Math.Max(1, (int)Math.Ceiling(diffMinutes / 60.0));
+        }
+
         private void ShowPaymentSection(Booking1 booking)
         {
             try
@@ -108,33 +127,38 @@ namespace UserModule
                 lblCustomerPhone.Text = $"Phone: {booking.phone_number ?? "N/A"}";
                 lblSeatType.Text = $"Booking ID: {booking.booking_id} | Type: {booking.booking_type}";
 
-                // Calculate extra charges based on time (if stayed longer than expected)
-                decimal extraCharges = 0;
-                
-                // Calculate duration from in_time to now
-                DateTime bookingDate = booking.booking_date;
-                DateTime inDateTime = bookingDate.Date + booking.in_time;
+                // Get current time as out_time
                 DateTime currentTime = DateTime.Now;
-                TimeSpan duration = currentTime - inDateTime;
+                TimeSpan currentOutTime = currentTime.TimeOfDay;
                 
-                // Example: Charge ₹50 per hour after 6 hours
-                if (duration.TotalHours > 6)
+                // Calculate actual hours from in_time to current out_time
+                int actualTotalHours = CalculateActualHours(booking.in_time, currentOutTime);
+                
+                // Get booked hours
+                int bookedHours = booking.total_hours;
+                
+                // Calculate base amount for booked hours
+                decimal baseAmount = booking.price_per_person * booking.number_of_persons * bookedHours;
+                
+                // Calculate extra charges if stayed longer
+                decimal extraCharges = 0;
+                if (actualTotalHours > bookedHours)
                 {
-                    double extraHours = Math.Ceiling(duration.TotalHours - 6);
-                    extraCharges = (decimal)(extraHours * 50);
+                    int extraHours = actualTotalHours - bookedHours;
+                    // Extra charges = extra hours × rate per person × number of persons
+                    extraCharges = booking.price_per_person * booking.number_of_persons * extraHours;
                 }
 
-                // Calculate total amount
-                decimal originalAmount = booking.total_amount;
-                decimal totalAmount = originalAmount + extraCharges;
+                // Calculate new total amount based on actual hours
+                decimal actualTotalAmount = booking.price_per_person * booking.number_of_persons * actualTotalHours;
                 decimal paidAmount = booking.paid_amount;
-                decimal balanceAmount = totalAmount - paidAmount;
+                decimal balanceAmount = actualTotalAmount - paidAmount;
 
                 // Display amounts
-                lblOriginalAmount.Text = $"₹{originalAmount:F2}";
+                lblOriginalAmount.Text = $"₹{baseAmount:F2}";
                 lblExtraCharges.Text = $"₹{extraCharges:F2}";
-                lblTotalAmount.Text = $"₹{totalAmount:F2}";
-                lblPaidAmount.Text = $"₹{paidAmount:F2}";
+                lblTotalAmount.Text = $"₹{actualTotalAmount:F2}";
+                txtPaidAmount.Text = paidAmount.ToString("F2");
                 txtBalanceAmount.Text = balanceAmount.ToString("F2");
 
                 // Set current out time dynamically
@@ -153,6 +177,30 @@ namespace UserModule
         private void cmbPaymentMethod_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             ValidatePaymentForm();
+        }
+
+        private void txtPaidAmount_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                // Get total amount from label
+                if (lblTotalAmount != null && txtPaidAmount != null && txtBalanceAmount != null)
+                {
+                    string totalText = lblTotalAmount.Text.Replace("₹", "").Trim();
+                    string paidText = txtPaidAmount.Text.Trim();
+                    
+                    if (decimal.TryParse(totalText, out decimal totalAmount) && 
+                        decimal.TryParse(paidText, out decimal paidAmount))
+                    {
+                        decimal balance = totalAmount - paidAmount;
+                        txtBalanceAmount.Text = balance.ToString("F2");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+            }
         }
 
         private void ValidatePaymentForm()
@@ -203,6 +251,12 @@ namespace UserModule
                     return;
                 }
 
+                if (string.IsNullOrEmpty(currentBooking.booking_id))
+                {
+                    MessageBox.Show("Invalid booking ID!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 // Validate inputs
                 if (cmbPaymentMethod == null || cmbPaymentMethod.SelectedIndex <= 0)
                 {
@@ -236,7 +290,8 @@ namespace UserModule
                 // Calculate amounts
                 decimal extraCharges = decimal.Parse(lblExtraCharges.Text.Replace("₹", ""));
                 decimal totalAmount = decimal.Parse(lblTotalAmount.Text.Replace("₹", ""));
-                decimal paidAmount = currentBooking.paid_amount + balanceAmount;
+                decimal paidAmountFromText = decimal.Parse(txtPaidAmount.Text);
+                decimal paidAmount = paidAmountFromText; // Use the editable paid amount
 
                 // Disable button to prevent double clicks
                 btnCompletePayment.IsEnabled = false;
@@ -265,6 +320,11 @@ namespace UserModule
                         "Success", MessageBoxButton.OK, MessageBoxImage.Information);
 
                     Logger.Log($"Payment completed for booking {currentBooking.booking_id} - Amount: {paidAmount}, Method: {paymentMethod}");
+
+                    // Update booking with final amounts for receipt
+                    currentBooking.paid_amount = paidAmount;
+                    currentBooking.total_amount = totalAmount;
+                    currentBooking.balance_amount = 0;
 
                     // Close the control
                     CloseRequested?.Invoke(this, EventArgs.Empty);

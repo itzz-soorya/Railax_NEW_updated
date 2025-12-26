@@ -207,7 +207,7 @@ namespace UserModule
                     //     "Sync Complete", MessageBoxImage.Information);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 if (showMessages)
                 {

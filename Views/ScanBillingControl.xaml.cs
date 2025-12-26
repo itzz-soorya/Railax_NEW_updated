@@ -153,7 +153,7 @@ namespace UserModule
                 return;
             }
 
-            if (currentBooking == null) return;
+            if (currentBooking == null || string.IsNullOrEmpty(currentBooking.booking_id)) return;
 
             try
             {

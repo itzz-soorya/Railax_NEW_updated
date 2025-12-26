@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 
 public class StoredItem
 {
-    public string Value { get; set; }
+    public string? Value { get; set; }
     public DateTime? Expiry { get; set; }  // Null = never expires
 }
 
@@ -50,11 +50,10 @@ public static class LocalStorage
         SaveToFile();
     }
 
-    public static string GetItem(string key)
+    public static string? GetItem(string key)
     {
-        if (data.ContainsKey(key))
+        if (data.TryGetValue(key, out var item))
         {
-            var item = data[key];
             if (item.Expiry == null || item.Expiry > DateTime.Now)
                 return item.Value;
 

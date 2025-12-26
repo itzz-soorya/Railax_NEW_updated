@@ -571,11 +571,8 @@
                                     Foreground="Black" FontWeight="DemiBold" 
                                     Tag="0" 
                                     Height="40" 
-                                    IsReadOnly="True"
-                                    IsReadOnlyCaretVisible="False"
                                     Background="White"
-                                    BorderBrush="#CCCCCC"
-                                    Cursor="Arrow"/>
+                                    BorderBrush="#CCCCCC"/>
                                 <TextBlock x:Name="errPaid" Text="* Fill Advance Amount" Foreground="#CC1F1F" FontSize="12" Visibility="Collapsed" Margin="5,2,0,0"/>
                             </StackPanel>
                         </Grid>

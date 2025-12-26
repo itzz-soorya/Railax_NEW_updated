@@ -202,6 +202,9 @@ namespace UserModule
 
                         // Fetch and save worker settings and booking types to local database
                         await OfflineBookingStorage.FetchAndSaveWorkerSettingsAsync(adminId);
+                        
+                        // Fetch and save printer details for receipt printing
+                        await OfflineBookingStorage.FetchAndSavePrinterDetailsAsync(adminId);
 
                         LoginSuccess?.Invoke(username);
                     }
@@ -285,9 +288,9 @@ namespace UserModule
                 parent.SizeChanged += Parent_SizeChanged;
             }
 
-            string savedWorkerId = LocalStorage.GetItem("workerId");
-            string savedAdminId = LocalStorage.GetItem("adminId");
-            string savedUsername = LocalStorage.GetItem("username");
+            string? savedWorkerId = LocalStorage.GetItem("workerId");
+            string? savedAdminId = LocalStorage.GetItem("adminId");
+            string? savedUsername = LocalStorage.GetItem("username");
 
             if (!string.IsNullOrEmpty(savedWorkerId))
             {
@@ -299,10 +302,11 @@ namespace UserModule
                 {
                     LoaderOverlay.Visibility = Visibility.Visible;
                     await OfflineBookingStorage.FetchAndSaveWorkerSettingsAsync(savedAdminId);
+                    await OfflineBookingStorage.FetchAndSavePrinterDetailsAsync(savedAdminId);
                     LoaderOverlay.Visibility = Visibility.Collapsed;
                 }
 
-                LoginSuccess?.Invoke(savedUsername);
+                LoginSuccess?.Invoke(savedUsername ?? string.Empty);
             }
         }
     }

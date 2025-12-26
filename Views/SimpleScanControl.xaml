@@ -76,7 +76,9 @@
                             <TextBlock x:Name="lblTotalAmount" Grid.Row="2" Grid.Column="1" Text="₹0" FontSize="15" FontWeight="Bold" Margin="10,5" Foreground="#2ECC71"/>
 
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Paid Amount:" FontSize="14" Margin="0,5"/>
-                            <TextBlock x:Name="lblPaidAmount" Grid.Row="3" Grid.Column="1" Text="₹0" FontSize="14" FontWeight="SemiBold" Margin="10,5"/>
+                            <TextBox x:Name="txtPaidAmount" Grid.Row="3" Grid.Column="1" Text="₹0" FontSize="14" FontWeight="SemiBold" Margin="10,5"
+                                     Height="30" Padding="5" HorizontalContentAlignment="Right" BorderBrush="#999" BorderThickness="1"
+                                     TextChanged="txtPaidAmount_TextChanged"/>
 
                             <Rectangle Grid.Row="4" Grid.ColumnSpan="2" Height="1" Fill="#DDD" Margin="0,10"/>
                         </Grid>
@@ -101,7 +103,7 @@
                         <TextBlock Text="💵 Balance to Pay" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8"/>
                         <TextBox x:Name="txtBalanceAmount" FontSize="16" Height="40" Padding="10" 
                                  HorizontalContentAlignment="Center" BorderBrush="#999" BorderThickness="1"
-                                 IsReadOnly="True" Background="#F5F5F5" Cursor="Arrow"/>
+                                 IsReadOnly="True" Background="#FFF9E6" Cursor="Arrow" FontWeight="Bold"/>
                     </StackPanel>
                 </Grid>
 

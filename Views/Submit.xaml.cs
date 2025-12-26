@@ -45,7 +45,7 @@ namespace UserModule
             }
         }
 
-        private Header FindParentHeader()
+        private Header? FindParentHeader()
         {
             DependencyObject parent = this;
             while (parent != null)
