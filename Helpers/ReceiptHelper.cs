@@ -12,7 +12,7 @@ namespace UserModule
 {
     public static class ReceiptHelper
     {
-        private static BitmapSource GenerateBarcodeImage(string text, int width = 300, int height = 80)
+        private static BitmapSource GenerateBarcodeImage(string text, int width = 600, int height = 120)
         {
             if (string.IsNullOrEmpty(text)) text = "NA";
 
@@ -23,7 +23,8 @@ namespace UserModule
                 {
                     Width = width,
                     Height = height,
-                    Margin = 2
+                    Margin = 5,
+                    PureBarcode = false
                 }
             };
 
@@ -31,7 +32,7 @@ namespace UserModule
 
             int stride = pixelData.Width * 4;
             return BitmapSource.Create(pixelData.Width, pixelData.Height,
-                300, 300, PixelFormats.Bgra32, null, pixelData.Pixels, stride);
+                600, 600, PixelFormats.Bgra32, null, pixelData.Pixels, stride);
         }
 
         private static UIElement BuildReceiptVisual(
@@ -54,32 +55,29 @@ namespace UserModule
             double totalAmount = baseAmount + extraCharges;
             double balance = totalAmount - paidAmount;
 
-            // Root panel
-            var root = new Border
+            // Root panel optimized for 78mm thermal paper (width ~295px at 96dpi)
+            var root = new StackPanel
             {
                 Background = Brushes.White,
-                Padding = new Thickness(12),
-                CornerRadius = new CornerRadius(6),
-                Child = new StackPanel
-                {
-                    Width = 320, // default receipt width; Print helper will scale if needed
-                    Orientation = Orientation.Vertical
-                }
+                Width = 295,
+                Margin = new Thickness(0, 2, 0, 2),
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
 
-            var stack = (StackPanel)root.Child;
+            var stack = root;
 
             // Header - Heading 1
             if (!string.IsNullOrWhiteSpace(heading1))
             {
                 stack.Children.Add(new TextBlock
                 {
-                    Text = heading1,
-                    FontSize = 16,
+                    Text = heading1.ToUpper(),
+                    FontSize = 13,
                     FontWeight = FontWeights.Bold,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 0, 0, 2)
+                    Margin = new Thickness(0, 2, 0, 1)
                 });
             }
 
@@ -88,12 +86,12 @@ namespace UserModule
             {
                 stack.Children.Add(new TextBlock
                 {
-                    Text = heading2,
-                    FontSize = 14,
+                    Text = heading2.ToUpper(),
+                    FontSize = 12,
                     FontWeight = FontWeights.Bold,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 0, 0, 2)
+                    Margin = new Thickness(0, 0, 0, 1)
                 });
             }
 
@@ -103,7 +101,7 @@ namespace UserModule
                 stack.Children.Add(new TextBlock
                 {
                     Text = info1,
-                    FontSize = 10,
+                    FontSize = 8,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 0, 0, 1)
@@ -116,10 +114,10 @@ namespace UserModule
                 stack.Children.Add(new TextBlock
                 {
                     Text = info2,
-                    FontSize = 10,
+                    FontSize = 8,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 0, 0, 6)
+                    Margin = new Thickness(0, 0, 0, 3)
                 });
             }
 
@@ -129,52 +127,59 @@ namespace UserModule
                 stack.Children.Add(new TextBlock
                 {
                     Text = hallName,
-                    FontSize = 11,
+                    FontSize = 10,
                     FontWeight = FontWeights.SemiBold,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 0, 0, 6)
+                    Margin = new Thickness(0, 0, 0, 3)
                 });
             }
 
-            // Separator after header
-            stack.Children.Add(new Separator { Margin = new Thickness(0, 6, 0, 6) });
-
-            // Helper function to add key-value rows
-            void AddRow(string label, string value, bool isLast = false)
+            // Helper function to add key-value rows with minimal spacing
+            void AddRow(string label, string value, bool isLast = false, bool isBold = false)
             {
-                var row = new StackPanel 
-                { 
-                    Orientation = Orientation.Horizontal, 
-                    Margin = new Thickness(0, 0, 0, isLast ? 6 : 4),
+                var grid = new Grid
+                {
+                    Margin = new Thickness(0, 1, 0, 1),
                     HorizontalAlignment = HorizontalAlignment.Stretch
                 };
                 
-                var left = new TextBlock 
-                { 
-                    Text = label.PadRight(20), 
-                    FontSize = 12,
-                    FontFamily = new FontFamily("Consolas, Courier New")
-                };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130, GridUnitType.Pixel) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 
-                var colon = new TextBlock 
+                var leftBlock = new TextBlock 
                 { 
-                    Text = ": ", 
-                    FontSize = 12,
-                    FontFamily = new FontFamily("Consolas, Courier New")
+                    Text = label,
+                    FontSize = 13,
+                    FontWeight = isBold ? FontWeights.Bold : FontWeights.Normal,
+                    Margin = new Thickness(5, 0, 0, 0),
+                    TextAlignment = TextAlignment.Left
                 };
+                Grid.SetColumn(leftBlock, 0);
                 
-                var right = new TextBlock 
+                var colonBlock = new TextBlock 
                 { 
-                    Text = value, 
-                    FontSize = 12,
-                    FontFamily = new FontFamily("Consolas, Courier New")
+                    Text = ":",
+                    FontSize = 13,
+                    FontWeight = isBold ? FontWeights.Bold : FontWeights.Normal,
+                    Margin = new Thickness(3, 0, 8, 0)
                 };
+                Grid.SetColumn(colonBlock, 1);
                 
-                row.Children.Add(left);
-                row.Children.Add(colon);
-                row.Children.Add(right);
-                stack.Children.Add(row);
+                var rightBlock = new TextBlock 
+                { 
+                    Text = value,
+                    FontSize = 13,
+                    FontWeight = isBold ? FontWeights.Bold : FontWeights.Normal,
+                    TextAlignment = TextAlignment.Left
+                };
+                Grid.SetColumn(rightBlock, 2);
+                
+                grid.Children.Add(leftBlock);
+                grid.Children.Add(colonBlock);
+                grid.Children.Add(rightBlock);
+                stack.Children.Add(grid);
             }
 
             // Customer details in key-value format
@@ -182,46 +187,41 @@ namespace UserModule
             AddRow("Phone", phoneNo);
             AddRow("Persons", persons.ToString());
 
-            // Separator
-            stack.Children.Add(new Separator { Margin = new Thickness(0, 6, 0, 6) });
-
             // Billing details
             AddRow("Total Hours", totalHours.ToString());
-            AddRow("Rate / Person", $"₹{ratePerPerson}");
-            AddRow("Base Amount", $"₹{baseAmount}");
+            AddRow("Rate / Person", $"₹{ratePerPerson:F0}");
+            AddRow("Base Amount", $"₹{baseAmount:F0}");
             
             // Show extra charges if any
             if (extraCharges > 0)
             {
-                AddRow("Extra Charges", $"₹{extraCharges}");
+                AddRow("Extra Charges", $"₹{extraCharges:F0}");
             }
             
-            AddRow("Total Amount", $"₹{totalAmount}");
-            AddRow("Paid Amount", $"₹{paidAmount}");
-            AddRow("Balance", $"₹{balance}", true);
+            AddRow("Total Amount", $"₹{totalAmount:F0}");
+            AddRow("Paid Amount", $"₹{paidAmount:F0}");
+            AddRow("Balance", $"₹{balance:F0}", isLast: true, isBold: true);
 
-            // Space before barcode
-            stack.Children.Add(new StackPanel { Height = 8 });
-
-            // Barcode image
+            // Barcode image with higher DPI
             var barcode = new Image
             {
-                Source = GenerateBarcodeImage(billId, width: 280, height: 60),
-                Width = 280,
-                Height = 60,
+                Source = GenerateBarcodeImage(billId, width: 600, height: 120),
+                Width = 260,
+                Height = 50,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 8, 0, 4)
+                Margin = new Thickness(0, 3, 0, 2),
+                Stretch = Stretch.Uniform
             };
             stack.Children.Add(barcode);
 
             stack.Children.Add(new TextBlock
             {
                 Text = "Scan to close the bill",
-                FontSize = 11,
-                Foreground = Brushes.Gray,
+                FontSize = 8,
+                Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 0)
+                Margin = new Thickness(0, 0, 0, 2)
             });
 
             // Note at the bottom
@@ -230,13 +230,12 @@ namespace UserModule
                 stack.Children.Add(new TextBlock
                 {
                     Text = $"Note: {note}",
-                    FontSize = 10,
-                    FontStyle = FontStyles.Italic,
-                    Foreground = Brushes.Gray,
-                    TextAlignment = TextAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center,
+                    FontSize = 8,
+                    Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
+                    TextAlignment = TextAlignment.Left,
+                    HorizontalAlignment = HorizontalAlignment.Left,
                     TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 8, 0, 0)
+                    Margin = new Thickness(3, 3, 3, 2)
                 });
             }
 

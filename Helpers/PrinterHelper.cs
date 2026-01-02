@@ -94,8 +94,9 @@ namespace UserModule
             var areaWidth = printDialog.PrintableAreaWidth;
             var areaHeight = printDialog.PrintableAreaHeight;
 
-            visual.Measure(new Size(areaWidth, areaHeight));
-            visual.Arrange(new Rect(new Point(0, 0), new Size(areaWidth, areaHeight)));
+            // Measure with infinite size to get natural size, then arrange
+            visual.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            visual.Arrange(new Rect(new Point(0, 0), visual.DesiredSize));
             visual.UpdateLayout();
 
             try
@@ -181,7 +182,7 @@ int persons, decimal rate, decimal totalAmount, decimal paidAmount, decimal bala
             panel.Children.Add(new TextBlock { Text = $"Persons: {persons}", FontSize = 14 });
             panel.Children.Add(new TextBlock { Text = $"Rate per Person: ₹{rate:F2}", FontSize = 14 });
             panel.Children.Add(new TextBlock { Text = $"Total Amount: ₹{totalAmount:F2}", FontSize = 14 });
-            panel.Children.Add(new TextBlock { Text = $"Paid Amount: ₹{paidAmount:F2}", FontSize = 14 });
+            panel.Children.Add(new TextBlock { Text = $"Paiddd Amount: ₹{paidAmount:F2}", FontSize = 14 });
             panel.Children.Add(new TextBlock
             {
                 Text = $"Balance: ₹{balance:F2}",
