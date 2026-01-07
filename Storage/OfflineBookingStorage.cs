@@ -1275,11 +1275,21 @@ public static class OfflineBookingStorage
             
             // Make API call to get hall types (booking types) settings
             string fullUrl = $"{apiUrl}/{adminId}";
+            
+            Console.WriteLine("\n=== FETCHING WORKER SETTINGS ===");
+            Console.WriteLine($"Admin ID: {adminId}");
+            Console.WriteLine($"API URL: {fullUrl}");
+            
             var response = await client.GetAsync(fullUrl);
+            
+            Console.WriteLine($"Response Status: {response.StatusCode}");
             
             if (!response.IsSuccessStatusCode)
             {
                 string errorBody = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"ERROR: Failed to fetch settings");
+                Console.WriteLine($"Error Body: {errorBody}");
+                
                 MessageBox.Show($"Failed to fetch hall types settings.\n\n" +
                     $"Status Code: {response.StatusCode}\n" +
                     $"Reason: {response.ReasonPhrase}\n\n" +
@@ -1290,6 +1300,9 @@ public static class OfflineBookingStorage
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
+            
+            Console.WriteLine("\n=== RAW SETTINGS RESPONSE ===");
+            Console.WriteLine(jsonResponse);
             
             // Show raw JSON response in MessageBox
             // MessageBox.Show($"📥 Raw API Response:\n\n{jsonResponse}", 
@@ -1306,8 +1319,20 @@ public static class OfflineBookingStorage
                 return false;
             }
 
+            Console.WriteLine("\n=== PARSED SETTINGS DATA ===");
+            Console.WriteLine($"Type 1: {hallTypesResponse.Type1 ?? "NULL"}");
+            Console.WriteLine($"Type 1 Amount: ₹{hallTypesResponse.Type1Amount?.ToString() ?? "NULL"}");
+            Console.WriteLine($"Type 2: {hallTypesResponse.Type2 ?? "NULL"}");
+            Console.WriteLine($"Grace Amount: ₹{hallTypesResponse.GraceAmount?.ToString() ?? "NULL"}");
+            Console.WriteLine($"Grace Amount Type 2: ₹{hallTypesResponse.GraceAmountType2?.ToString() ?? "NULL"}");
+            Console.WriteLine($"Advance Payment Enabled: {hallTypesResponse.AdvancePaymentEnabled}");
+            Console.WriteLine($"Advance Payment %: {hallTypesResponse.AdvancePayment?.ToString() ?? "NULL"}");
+
             // Save to local database (save types + advance settings)
             SaveSettings(adminId, hallTypesResponse);
+            
+            Console.WriteLine("\nSettings saved to local database successfully!");
+            Console.WriteLine("====================================\n");
 
             // Build types info display
             var typesInfo = new List<string>();
@@ -1444,22 +1469,44 @@ public static class OfflineBookingStorage
             using var client = new HttpClient();
             
             string fullUrl = $"{apiUrl}/{adminId}";
+            
+            Console.WriteLine("\n=== FETCHING PRINTER DETAILS ===");
+            Console.WriteLine($"Admin ID: {adminId}");
+            Console.WriteLine($"API URL: {fullUrl}");
+            
             var response = await client.GetAsync(fullUrl);
+            
+            Console.WriteLine($"Response Status: {response.StatusCode}");
             
             if (!response.IsSuccessStatusCode)
             {
                 Logger.Log($"Failed to fetch printer details: {response.StatusCode}");
+                Console.WriteLine("ERROR: Failed to fetch printer details");
                 return false;
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
+            
+            Console.WriteLine("\n=== RAW PRINTER DETAILS RESPONSE ===");
+            Console.WriteLine(jsonResponse);
+            
             var printerDetails = JsonConvert.DeserializeObject<PrinterDetailsResponse>(jsonResponse);
 
             if (printerDetails == null)
             {
                 Logger.Log("Invalid printer details response from server");
+                Console.WriteLine("ERROR: Invalid printer details response");
                 return false;
             }
+
+            Console.WriteLine("\n=== PARSED PRINTER DETAILS ===");
+            Console.WriteLine($"Heading 1: {printerDetails.Heading1 ?? "NULL"}");
+            Console.WriteLine($"Heading 2: {printerDetails.Heading2 ?? "NULL"}");
+            Console.WriteLine($"Info 1: {printerDetails.Info1 ?? "NULL"}");
+            Console.WriteLine($"Info 2: {printerDetails.Info2 ?? "NULL"}");
+            Console.WriteLine($"Note: {printerDetails.Note ?? "NULL"}");
+            Console.WriteLine($"Hall Name: {printerDetails.HallName ?? "NULL"}");
+            Console.WriteLine($"Logo URL: {printerDetails.LogoUrl ?? "NULL"}");
 
             // Save to LocalStorage (valid for 8 hours)
             LocalStorage.SetItem("printerHeading1", printerDetails.Heading1 ?? "", TimeSpan.FromHours(8));
@@ -1470,12 +1517,16 @@ public static class OfflineBookingStorage
             LocalStorage.SetItem("hallName", printerDetails.HallName ?? "", TimeSpan.FromHours(8));
             LocalStorage.SetItem("printerLogoUrl", printerDetails.LogoUrl ?? "", TimeSpan.FromHours(8));
 
+            Console.WriteLine("\nPrinter details saved to LocalStorage successfully!");
+            Console.WriteLine("====================================\n");
+
             Logger.Log($"Printer details saved for hall: {printerDetails.HallName}");
             return true;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex);
+            Console.WriteLine($"ERROR: Exception while fetching printer details - {ex.Message}");
             return false;
         }
     }
@@ -1488,22 +1539,49 @@ public static class OfflineBookingStorage
             using var client = new HttpClient();
             
             string fullUrl = $"{apiUrl}/{adminId}";
+            
+            Console.WriteLine("\n=== FETCHING HOURLY PRICING (Type2 Details) ===");
+            Console.WriteLine($"Admin ID: {adminId}");
+            Console.WriteLine($"API URL: {fullUrl}");
+            
             var response = await client.GetAsync(fullUrl);
+            
+            Console.WriteLine($"Response Status: {response.StatusCode}");
             
             if (!response.IsSuccessStatusCode)
             {
                 Logger.Log($"Failed to fetch Type2 details: {response.StatusCode}");
+                Console.WriteLine("ERROR: Failed to fetch hourly pricing details");
                 return new List<Type2Detail>();
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
+            
+            Console.WriteLine("\n=== RAW HOURLY PRICING RESPONSE ===");
+            Console.WriteLine(jsonResponse);
+            
             var type2Details = JsonConvert.DeserializeObject<List<Type2Detail>>(jsonResponse);
 
             if (type2Details == null || type2Details.Count == 0)
             {
                 Logger.Log("No Type2 details found");
+                Console.WriteLine("No hourly pricing tiers found");
                 return new List<Type2Detail>();
             }
+
+            Console.WriteLine("\n=== PARSED HOURLY PRICING TIERS ===");
+            Console.WriteLine($"Total Tiers: {type2Details.Count}");
+            
+            foreach (var tier in type2Details)
+            {
+                Console.WriteLine($"\nTier ID: {tier.Id}");
+                Console.WriteLine($"  Min Hours: {tier.MinDuration ?? 0}");
+                Console.WriteLine($"  Max Hours: {tier.MaxDuration ?? 0}");
+                Console.WriteLine($"  Amount: ₹{tier.Amount ?? 0}");
+            }
+            
+            Console.WriteLine("\nHourly pricing fetched successfully!");
+            Console.WriteLine("====================================\n");
 
             Logger.Log($"Fetched {type2Details.Count} Type2 pricing tiers");
             return type2Details;
@@ -1511,7 +1589,62 @@ public static class OfflineBookingStorage
         catch (Exception ex)
         {
             Logger.LogError(ex);
+            Console.WriteLine($"ERROR: Exception while fetching hourly pricing - {ex.Message}");
             return new List<Type2Detail>();
+        }
+    }
+
+    // Save hourly pricing tiers to local database
+    public static void SaveHourlyPricingTiers(string adminId, List<Type2Detail> tiers)
+    {
+        if (tiers == null || tiers.Count == 0)
+        {
+            Console.WriteLine("No hourly pricing tiers to save.");
+            return;
+        }
+
+        try
+        {
+            using var connection = new SqliteConnection($"Data Source={DbPath}");
+            connection.Open();
+
+            // Delete old pricing for this admin
+            string deleteQuery = "DELETE FROM HourlyPricing WHERE admin_id = @admin_id";
+            using (var deleteCmd = new SqliteCommand(deleteQuery, connection))
+            {
+                deleteCmd.Parameters.AddWithValue("@admin_id", adminId);
+                deleteCmd.ExecuteNonQuery();
+            }
+
+            Console.WriteLine("\n=== SAVING HOURLY PRICING TO DATABASE ===");
+            
+            // Insert new pricing tiers
+            string insertQuery = @"
+                INSERT INTO HourlyPricing (admin_id, min_hours, max_hours, amount, last_synced)
+                VALUES (@admin_id, @min_hours, @max_hours, @amount, @last_synced)";
+
+            foreach (var tier in tiers)
+            {
+                using var insertCmd = new SqliteCommand(insertQuery, connection);
+                insertCmd.Parameters.AddWithValue("@admin_id", adminId);
+                insertCmd.Parameters.AddWithValue("@min_hours", tier.MinDuration ?? 0);
+                insertCmd.Parameters.AddWithValue("@max_hours", tier.MaxDuration ?? 0);
+                insertCmd.Parameters.AddWithValue("@amount", tier.Amount ?? 0);
+                insertCmd.Parameters.AddWithValue("@last_synced", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                insertCmd.ExecuteNonQuery();
+
+                Console.WriteLine($"Saved: {tier.MinDuration}-{tier.MaxDuration} hours = ₹{tier.Amount}");
+            }
+
+            Console.WriteLine($"\n✅ {tiers.Count} hourly pricing tiers saved to local database");
+            Console.WriteLine("====================================\n");
+            
+            Logger.Log($"Saved {tiers.Count} hourly pricing tiers to database for admin_id: {adminId}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex);
+            Console.WriteLine($"ERROR: Failed to save hourly pricing - {ex.Message}");
         }
     }
 

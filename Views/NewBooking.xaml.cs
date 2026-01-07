@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Linq;
+using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Newtonsoft.Json.Linq;
 using UserModule.Models;
 
 namespace UserModule
@@ -38,6 +41,9 @@ namespace UserModule
         public NewBooking()
         {
             InitializeComponent();
+
+            // Load seating types on page load
+            this.Loaded += NewBooking_Loaded;
 
             // Add keyboard shortcut for direct print (Ctrl+Shift+P)
             this.PreviewKeyDown += NewBooking_PreviewKeyDown;
@@ -74,6 +80,9 @@ namespace UserModule
             txtHours.SelectionChanged += (s, e) => errHours.Visibility = Visibility.Collapsed;
             cmbIdType.SelectionChanged += (s, e) => errIdType.Visibility = Visibility.Collapsed;
 
+            // Handle seat type change to populate hours dynamically
+            txtSeats.SelectionChanged += TxtSeats_SelectionChanged;
+
             // Update total amount automatically when user changes inputs
             txtSeats.SelectionChanged += (s, e) => UpdateAmount();
             txtHours.SelectionChanged += (s, e) => UpdateAmount();
@@ -104,6 +113,145 @@ namespace UserModule
                 }
             };
 
+        }
+
+        /// <summary>
+        /// Handle page loaded event
+        /// </summary>
+        private async void NewBooking_Loaded(object sender, RoutedEventArgs e)
+        {
+            await LoadSeatingTypesAsync();
+        }
+
+        /// <summary>
+        /// Fetch seating types from API and configure ComboBox
+        /// </summary>
+        private async Task LoadSeatingTypesAsync()
+        {
+            try
+            {
+                // Get admin and worker IDs from LocalStorage
+                string adminId = LocalStorage.GetItem("adminId") ?? "";
+                string workerId = LocalStorage.GetItem("workerId") ?? "";
+
+                if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(workerId))
+                {
+                    // Default to showing both options if IDs not available
+                    ConfigureSeatingOptions(2);
+                    return;
+                }
+
+                // Check if seating_types already exists in LocalStorage
+                string? cachedSeatingTypes = LocalStorage.GetItem("seating_types");
+                if (!string.IsNullOrEmpty(cachedSeatingTypes) && int.TryParse(cachedSeatingTypes, out int cachedValue))
+                {
+                    ConfigureSeatingOptions(cachedValue);
+                    return;
+                }
+
+                // Fetch from API
+                string apiUrl = $"https://railway-api.artechnology.pro/api/worker/get-seating-types/{adminId}/{workerId}";
+                using (HttpClient client = new HttpClient())
+                {
+                    var response = await client.GetAsync(apiUrl);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string jsonResponse = await response.Content.ReadAsStringAsync();
+                        var jsonObject = JObject.Parse(jsonResponse);
+                        int seatingTypes = jsonObject["seating_types"]?.Value<int>() ?? 2;
+
+                        // Save to LocalStorage (no expiry)
+                        LocalStorage.SetItem("seating_types", seatingTypes.ToString());
+
+                        // Configure the ComboBox based on the value
+                        ConfigureSeatingOptions(seatingTypes);
+                    }
+                    else
+                    {
+                        // Default to showing both options on API failure
+                        ConfigureSeatingOptions(2);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error and default to showing both options
+                System.Diagnostics.Debug.WriteLine($"Error loading seating types: {ex.Message}");
+                ConfigureSeatingOptions(2);
+            }
+        }
+
+        /// <summary>
+        /// Configure seat type ComboBox based on seating_types value
+        /// 0 = only Sitting
+        /// 1 = only Sleeping (Sleeper)
+        /// 2 = both Sitting and Sleeping
+        /// </summary>
+        private void ConfigureSeatingOptions(int seatingTypes)
+        {
+            // Clear existing items except placeholder
+            txtSeats.Items.Clear();
+            
+            // Add placeholder
+            var placeholder = new ComboBoxItem
+            {
+                Content = "Select type",
+                IsEnabled = false,
+                IsSelected = true,
+                Style = (Style)FindResource("WhiteComboBoxItemStyle")
+            };
+            placeholder.Name = "seatsPlaceholder";
+            txtSeats.Items.Add(placeholder);
+
+            // Add items based on seating_types
+            switch (seatingTypes)
+            {
+                case 0: // Only Sitting
+                    txtSeats.Items.Add(new ComboBoxItem
+                    {
+                        Content = "Sitting",
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    });
+                    break;
+
+                case 1: // Only Sleeping (Sleeper)
+                    txtSeats.Items.Add(new ComboBoxItem
+                    {
+                        Content = "Sleeper",
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    });
+                    break;
+
+                case 2: // Both
+                default:
+                    txtSeats.Items.Add(new ComboBoxItem
+                    {
+                        Content = "Sitting",
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    });
+                    txtSeats.Items.Add(new ComboBoxItem
+                    {
+                        Content = "Sleeper",
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    });
+                    break;
+            }
+
+            // Select placeholder by default
+            txtSeats.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Public method to refresh seating types from API (useful for manual refresh)
+        /// </summary>
+        public async Task RefreshSeatingTypesAsync(bool forceRefresh = false)
+        {
+            if (forceRefresh)
+            {
+                // Clear cache to force API call
+                LocalStorage.RemoveItem("seating_types");
+            }
+            await LoadSeatingTypesAsync();
         }
 
         /// <summary>
@@ -180,13 +328,133 @@ namespace UserModule
             // If user picks index > 0, collapse the placeholder item so it no longer appears
             if (txtSeats.SelectedIndex > 0)
             {
-                seatsPlaceholder.Visibility = Visibility.Collapsed;
+                var placeholder = GetSeatsPlaceholder();
+                if (placeholder != null) placeholder.Visibility = Visibility.Collapsed;
                 SetForegroundColor(txtSeats, false);
             }
             else
             {
-                seatsPlaceholder.Visibility = Visibility.Visible;
+                var placeholder = GetSeatsPlaceholder();
+                if (placeholder != null) placeholder.Visibility = Visibility.Visible;
                 SetForegroundColor(txtSeats, true);
+            }
+        }
+
+        /// <summary>
+        /// Get the placeholder ComboBoxItem from txtSeats
+        /// </summary>
+        private ComboBoxItem? GetSeatsPlaceholder()
+        {
+            return txtSeats.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Name == "seatsPlaceholder");
+        }
+
+        /// <summary>
+        /// Handle seat type selection change to populate hours dynamically
+        /// </summary>
+        private void TxtSeats_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (txtSeats.SelectedItem is ComboBoxItem selectedItem && 
+                selectedItem.Name != "seatsPlaceholder")
+            {
+                string seatType = selectedItem.Content?.ToString()?.ToLower() ?? "";
+                
+                if (seatType == "sleeper" || seatType == "sleeping")
+                {
+                    // Load hourly pricing tiers from database for Sleeper
+                    PopulateHoursWithPricingTiers();
+                }
+                else
+                {
+                    // For Sitting, show default hours (1-12)
+                    PopulateDefaultHours();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Populate hours dropdown with pricing tiers from database (for Sleeper)
+        /// </summary>
+        private void PopulateHoursWithPricingTiers()
+        {
+            try
+            {
+                // Clear existing items except placeholder
+                var placeholder = txtHours.Items[0];
+                txtHours.Items.Clear();
+                txtHours.Items.Add(placeholder);
+
+                // Get hourly pricing tiers from database
+                var pricingTiers = OfflineBookingStorage.GetHourlyPricingTiers();
+
+                if (pricingTiers == null || pricingTiers.Count == 0)
+                {
+                    Console.WriteLine("No hourly pricing tiers found in database");
+                    // Fallback to default hours
+                    PopulateDefaultHours();
+                    return;
+                }
+
+                Console.WriteLine($"\n=== POPULATING HOURS WITH PRICING TIERS ===");
+                Console.WriteLine($"Found {pricingTiers.Count} pricing tiers");
+
+                foreach (var tier in pricingTiers)
+                {
+                    string displayText = $"{tier.MinHours}-{tier.MaxHours} hrs";
+                    
+                    var item = new ComboBoxItem
+                    {
+                        Content = displayText,
+                        Tag = tier.Amount, // Store the amount in Tag for easy access
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    };
+
+                    txtHours.Items.Add(item);
+                    Console.WriteLine($"Added: {displayText} (Amount: ₹{tier.Amount})");
+                }
+
+                Console.WriteLine("====================================\n");
+
+                // Reset selection to placeholder
+                txtHours.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to populate pricing tiers - {ex.Message}");
+                Logger.LogError(ex);
+                PopulateDefaultHours();
+            }
+        }
+
+        /// <summary>
+        /// Populate hours dropdown with default 1-12 hours (for Sitting)
+        /// </summary>
+        private void PopulateDefaultHours()
+        {
+            try
+            {
+                // Clear existing items except placeholder
+                var placeholder = txtHours.Items[0];
+                txtHours.Items.Clear();
+                txtHours.Items.Add(placeholder);
+
+                // Add default 1-12 hours
+                for (int i = 1; i <= 12; i++)
+                {
+                    var item = new ComboBoxItem
+                    {
+                        Content = $"{i} hr",
+                        Style = (Style)FindResource("WhiteComboBoxItemStyle")
+                    };
+                    txtHours.Items.Add(item);
+                }
+
+                // Reset selection to placeholder
+                txtHours.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to populate default hours - {ex.Message}");
+                Logger.LogError(ex);
             }
         }
 
@@ -707,7 +975,8 @@ namespace UserModule
             txtHours.SelectedIndex = 0;
 
             // Reset placeholders visibility if any
-            seatsPlaceholder.Visibility = Visibility.Visible;
+            var seatsPlaceholder = GetSeatsPlaceholder();
+            if (seatsPlaceholder != null) seatsPlaceholder.Visibility = Visibility.Visible;
             hoursPlaceholder.Visibility = Visibility.Visible;
 
             // Generate new Booking ID for next entry
@@ -746,41 +1015,48 @@ namespace UserModule
                 return;
             }
 
-            // Parse hours safely
-            var hoursParts = hoursText.Split(' ');
-            if (hoursParts.Length == 0 || !int.TryParse(hoursParts[0], out int totalHours) || totalHours <= 0)
-            {
-                txtRate.Text = "0";
-                txtTotalAmount.Text = "0";
-                txtPaid.Text = "0";
-                return;
-            }
+            var selectedHourItem = txtHours.SelectedItem as ComboBoxItem;
+            decimal pricePerPerson = 0;
 
-            // Get rate from the Tag property (set when loading from database)
-            decimal rate = 0;
-            if (selectedSeatItem?.Tag != null && selectedSeatItem.Tag is decimal tagRate)
+            // Check if this is a pricing tier (Sleeper with stored amount in Tag)
+            if (selectedHourItem?.Tag is decimal tierAmount)
             {
-                rate = tagRate;
+                // For pricing tiers, use the amount directly (already calculated for the hour range)
+                pricePerPerson = tierAmount;
+                Console.WriteLine($"Using pricing tier amount: ₹{tierAmount}");
             }
             else
             {
-                // Fallback: try to get from database
-                rate = OfflineBookingStorage.GetBookingTypeAmount(seatType);
+                // For regular hours (Sitting), calculate: rate * hours
+                var hoursParts = hoursText.Split(' ');
+                if (hoursParts.Length == 0 || !int.TryParse(hoursParts[0], out int totalHours) || totalHours <= 0)
+                {
+                    txtRate.Text = "0";
+                    txtTotalAmount.Text = "0";
+                    txtPaid.Text = "0";
+                    return;
+                }
+
+                // Get base rate from database
+                decimal rate = OfflineBookingStorage.GetBookingTypeAmount(seatType);
+
+                // If no rate found, show error
+                if (rate <= 0)
+                {
+                    MessageBox.Show($"Could not find rate for '{seatType}'.\nPlease refresh booking types.",
+                        "Rate Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    txtRate.Text = "0";
+                    txtTotalAmount.Text = "0";
+                    txtPaid.Text = "0";
+                    return;
+                }
+
+                // Calculate: rate * hours
+                pricePerPerson = rate * totalHours;
+                Console.WriteLine($"Calculated price: ₹{rate} × {totalHours} hrs = ₹{pricePerPerson}");
             }
 
-            // If still no rate found, show error
-            if (rate <= 0)
-            {
-                MessageBox.Show($"Could not find rate for '{seatType}'.\nPlease refresh booking types.",
-                    "Rate Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
-                txtRate.Text = "0";
-                txtTotalAmount.Text = "0";
-                txtPaid.Text = "0";
-                return;
-            }
-
-            // Set price per person (rate * hours)
-            decimal pricePerPerson = rate * totalHours;
+            // Set price per person
             txtRate.Text = pricePerPerson.ToString("0.00");
             
             // Recalculate total with discount and advance
@@ -839,8 +1115,53 @@ namespace UserModule
 
                 int totalHours = 0;
                 var selectedHours = (txtHours.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                
+                Console.WriteLine($"\n=== PARSING TOTAL HOURS ===");
+                Console.WriteLine($"Selected Hours Text: '{selectedHours}'");
+                
                 if (!string.IsNullOrEmpty(selectedHours))
-                    int.TryParse(selectedHours.Split(' ')[0], out totalHours);
+                {
+                    // Handle both formats: "3 hr" and "1-3 hrs"
+                    string hoursPart = selectedHours.Split(' ')[0]; // Get "3" or "1-3"
+                    Console.WriteLine($"Hours Part (before space): '{hoursPart}'");
+                    
+                    if (hoursPart.Contains("-"))
+                    {
+                        // Handle range format "1-3" - use the max value
+                        var rangeParts = hoursPart.Split('-');
+                        Console.WriteLine($"Range Parts: [{string.Join(", ", rangeParts)}]");
+                        
+                        if (rangeParts.Length == 2 && int.TryParse(rangeParts[1], out int maxHours))
+                        {
+                            totalHours = maxHours;
+                            Console.WriteLine($"✅ Parsed hour range: Using max hours = {totalHours}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ Failed to parse hour range");
+                        }
+                    }
+                    else
+                    {
+                        // Handle single number format "3"
+                        if (int.TryParse(hoursPart, out int singleHour))
+                        {
+                            totalHours = singleHour;
+                            Console.WriteLine($"✅ Parsed single hour: {totalHours}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ Failed to parse single hour from '{hoursPart}'");
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ No hours selected");
+                }
+                
+                Console.WriteLine($"Final totalHours value: {totalHours}");
+                Console.WriteLine("====================================\n");
 
                 int persons = int.TryParse(txtPersons.Text, out var parsedPersons) ? parsedPersons : 0;
                 decimal rate = decimal.TryParse(txtRate.Text, out var r) ? r : 0;
@@ -991,7 +1312,8 @@ namespace UserModule
             cmbIdType.SelectedIndex = 0;
 
             // Reset placeholders
-            seatsPlaceholder.Visibility = Visibility.Visible;
+            var seatsPlaceholder = GetSeatsPlaceholder();
+            if (seatsPlaceholder != null) seatsPlaceholder.Visibility = Visibility.Visible;
             hoursPlaceholder.Visibility = Visibility.Visible;
 
             // Reset foreground colors to grey (placeholder color)
@@ -1557,16 +1879,16 @@ namespace UserModule
                 txtSeats.Items.Clear();
                 
                 // Re-add placeholder
-                var placeholder = new ComboBoxItem
+                var placeholderItem = new ComboBoxItem
                 {
                     Content = "Select type ",
                     IsEnabled = false,
                     IsSelected = true,
                     Style = (Style)FindResource("WhiteComboBoxItemStyle")
                 };
-                placeholder.SetValue(System.Windows.Controls.Primitives.Selector.IsSelectedProperty, true);
-                txtSeats.Items.Add(placeholder);
-                seatsPlaceholder = placeholder;
+                placeholderItem.Name = "seatsPlaceholder";
+                placeholderItem.SetValue(System.Windows.Controls.Primitives.Selector.IsSelectedProperty, true);
+                txtSeats.Items.Add(placeholderItem);
 
                 // Add booking types from database
                 if (bookingTypes.Count > 0)
@@ -1592,7 +1914,8 @@ namespace UserModule
 
                 // Reset selection to placeholder
                 txtSeats.SelectedIndex = 0;
-                seatsPlaceholder.Visibility = Visibility.Visible;
+                var seatsPlaceholder = GetSeatsPlaceholder();
+                if (seatsPlaceholder != null) seatsPlaceholder.Visibility = Visibility.Visible;
                 
                 // Set initial foreground color to grey (placeholder color)
                 SetForegroundColor(txtSeats, true);

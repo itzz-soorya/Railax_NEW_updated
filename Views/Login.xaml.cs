@@ -139,6 +139,11 @@ namespace UserModule
                                 ? txtPasswordVisible.Text
                                 : txtPassword.Password;
 
+            // Console log: Input data
+            Console.WriteLine("=== LOGIN ATTEMPT ===");
+            Console.WriteLine($"Username: {username}");
+            Console.WriteLine($"Password: {new string('*', password.Length)} (hidden for security)");
+
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
                 MessageBox.Show("Please enter both username and password.",
@@ -162,6 +167,12 @@ namespace UserModule
             };
 
             string json = JsonConvert.SerializeObject(loginData);
+            
+            // Console log: Request payload
+            Console.WriteLine("\n=== LOGIN REQUEST ===");
+            Console.WriteLine($"API Endpoint: https://railway-worker-backend.artechnology.pro/api/Login/check");
+            Console.WriteLine($"Request Payload: {json}");
+            
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             using (HttpClient client = new HttpClient())
@@ -171,10 +182,19 @@ namespace UserModule
                     client.Timeout = TimeSpan.FromSeconds(6);
 
                     HttpResponseMessage response = await client.PostAsync("https://railway-worker-backend.artechnology.pro/api/Login/check", content);
+                    
+                    // Console log: Response status
+                    Console.WriteLine("\n=== API RESPONSE ===");
+                    Console.WriteLine($"Status Code: {response.StatusCode}");
+                    Console.WriteLine($"Success: {response.IsSuccessStatusCode}");
+                    
                     // MessageBox.Show($"Login attempt made. Status: {response.StatusCode}", "Login", MessageBoxButton.OK, MessageBoxImage.Information);
                     if (response.IsSuccessStatusCode)
                     {
                         string responseBody = await response.Content.ReadAsStringAsync();
+                        
+                        // Console log: Raw response
+                        Console.WriteLine($"Response Body: {responseBody}");
                         
                         // Show the raw response for debugging
                         // MessageBox.Show($"Response received:\n\n{responseBody}", 
@@ -183,6 +203,11 @@ namespace UserModule
                         dynamic? result = JsonConvert.DeserializeObject(responseBody);
                         string? workerId = result?.worker_id;
                         string? adminId = result?.admin_id;
+
+                        // Console log: Parsed data
+                        Console.WriteLine("\n=== PARSED DATA ===");
+                        Console.WriteLine($"Worker ID: {workerId ?? "NULL"}");
+                        Console.WriteLine($"Admin ID: {adminId ?? "NULL"}");
 
                         // Show parsed values
                         // MessageBox.Show($"Worker ID: {workerId ?? "NULL"}\nAdmin ID: {adminId ?? "NULL"}", 
@@ -200,11 +225,25 @@ namespace UserModule
                         LocalStorage.SetItem("adminId", adminId, TimeSpan.FromHours(8));
                         LocalStorage.SetItem("username", username, TimeSpan.FromHours(8));
 
+                        // Console log: Saved data
+                        Console.WriteLine("\n=== SAVED TO LOCAL STORAGE ===");
+                        Console.WriteLine($"workerId: {workerId} (Expiry: 8 hours)");
+                        Console.WriteLine($"adminId: {adminId} (Expiry: 8 hours)");
+                        Console.WriteLine($"username: {username} (Expiry: 8 hours)");
+
                         // Fetch and save worker settings and booking types to local database
                         await OfflineBookingStorage.FetchAndSaveWorkerSettingsAsync(adminId);
                         
                         // Fetch and save printer details for receipt printing
                         await OfflineBookingStorage.FetchAndSavePrinterDetailsAsync(adminId);
+                        
+                        // Fetch and save hourly pricing tiers (Type2 details)
+                        var hourlyPricingTiers = await OfflineBookingStorage.FetchType2DetailsAsync(adminId);
+                        OfflineBookingStorage.SaveHourlyPricingTiers(adminId, hourlyPricingTiers);
+
+                        Console.WriteLine("\n=== LOGIN SUCCESS ===");
+                        Console.WriteLine("Worker settings, printer details, and hourly pricing fetched and saved.");
+                        Console.WriteLine("====================================\n");
 
                         LoginSuccess?.Invoke(username);
                     }
@@ -292,21 +331,46 @@ namespace UserModule
             string? savedAdminId = LocalStorage.GetItem("adminId");
             string? savedUsername = LocalStorage.GetItem("username");
 
+            // Console log: Auto-login check
+            Console.WriteLine("\n=== AUTO-LOGIN CHECK (On Load) ===");
+            Console.WriteLine($"Saved Worker ID: {savedWorkerId ?? "NOT FOUND"}");
+            Console.WriteLine($"Saved Admin ID: {savedAdminId ?? "NOT FOUND"}");
+            Console.WriteLine($"Saved Username: {savedUsername ?? "NOT FOUND"}");
+
             if (!string.IsNullOrEmpty(savedWorkerId))
             {
+                Console.WriteLine("\n=== AUTO-LOGIN TRIGGERED ===");
+                Console.WriteLine("Valid session found in LocalStorage.");
+                
                 // Check if settings exist and are still valid (not expired)
                 var settings = OfflineBookingStorage.GetSettings();
                 
                 // If settings are expired or missing, refetch them
                 if (settings == null && !string.IsNullOrEmpty(savedAdminId))
                 {
+                    Console.WriteLine("Settings not found or expired. Fetching fresh data...");
                     LoaderOverlay.Visibility = Visibility.Visible;
                     await OfflineBookingStorage.FetchAndSaveWorkerSettingsAsync(savedAdminId);
                     await OfflineBookingStorage.FetchAndSavePrinterDetailsAsync(savedAdminId);
+                    var hourlyPricingTiers = await OfflineBookingStorage.FetchType2DetailsAsync(savedAdminId);
+                    OfflineBookingStorage.SaveHourlyPricingTiers(savedAdminId, hourlyPricingTiers);
                     LoaderOverlay.Visibility = Visibility.Collapsed;
+                    Console.WriteLine("Fresh settings, printer details, and hourly pricing fetched and saved.");
+                }
+                else
+                {
+                    Console.WriteLine("Using existing settings from storage.");
                 }
 
+                Console.WriteLine("Auto-login successful!");
+                Console.WriteLine("====================================\n");
+
                 LoginSuccess?.Invoke(savedUsername ?? string.Empty);
+            }
+            else
+            {
+                Console.WriteLine("No saved session found. Manual login required.");
+                Console.WriteLine("====================================\n");
             }
         }
     }

@@ -443,9 +443,7 @@
                                  VerticalContentAlignment="Center"
                                  Style="{StaticResource WhiteComboBoxStyle}"
                                  SelectionChanged="txtSeats_SelectionChanged">
-                                    <ComboBoxItem x:Name="seatsPlaceholder" Content="Select type " IsEnabled="False" Style="{StaticResource WhiteComboBoxItemStyle}" IsSelected="True"/>
-                                    <ComboBoxItem Content="Sitting" Style="{StaticResource WhiteComboBoxItemStyle}"/>
-                                    <ComboBoxItem Content="Sleeper" Style="{StaticResource WhiteComboBoxItemStyle}"/>
+                                    <!-- Items are populated dynamically based on API response -->
                                 </ComboBox>
                                 <TextBlock x:Name="errSeats" Text="* Select Seat Type" Foreground="#CC1F1F" FontSize="12" Visibility="Collapsed" Margin="5,2,0,0"/>
                             </StackPanel>
