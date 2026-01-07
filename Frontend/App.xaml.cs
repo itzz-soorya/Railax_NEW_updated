@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -24,6 +26,18 @@ namespace UserModule
 
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetConsoleWindow();
+
+        // Windows API to bring window to front
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        private const int SW_RESTORE = 9;
 
         public App()
         {
@@ -75,7 +89,8 @@ namespace UserModule
 
             if (!createdNew)
             {
-                // Application is already running - silently exit
+                // Application is already running - bring existing window to front
+                BringExistingInstanceToFront();
                 Current.Shutdown();
                 return;
             }
@@ -103,7 +118,44 @@ namespace UserModule
         {
             _syncTimer?.Stop();
             _syncTimer?.Dispose();
+            _mutex?.ReleaseMutex();
+            _mutex?.Dispose();
             base.OnExit(e);
+        }
+
+        private void BringExistingInstanceToFront()
+        {
+            try
+            {
+                var currentProcess = Process.GetCurrentProcess();
+                var processes = Process.GetProcessesByName(currentProcess.ProcessName);
+
+                foreach (var process in processes)
+                {
+                    // Skip the current process
+                    if (process.Id != currentProcess.Id)
+                    {
+                        IntPtr handle = process.MainWindowHandle;
+                        if (handle != IntPtr.Zero)
+                        {
+                            // If window is minimized, restore it
+                            if (IsIconic(handle))
+                            {
+                                ShowWindow(handle, SW_RESTORE);
+                            }
+                            
+                            // Bring window to foreground
+                            SetForegroundWindow(handle);
+                            Logger.Log("Brought existing instance to front");
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
+            }
         }
 
         private void StartPeriodicSyncCheck()

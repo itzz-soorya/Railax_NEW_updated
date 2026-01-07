@@ -19,8 +19,8 @@ public static class OfflineBookingStorage
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
         "Railax");
     private static readonly string DbPath = Path.Combine(AppDataFolder, "offline_bookings.db");
-    private const string CreateBookingApiUrl = "http://localhost:5128/api/Booking/create";
-    private const string GetCompletedBookingsApiUrl = "http://localhost:5128/api/Booking/completed-today";
+    private const string CreateBookingApiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/create";
+    private const string GetCompletedBookingsApiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/completed-today";
 
     static OfflineBookingStorage()
     {
@@ -292,7 +292,7 @@ public static class OfflineBookingStorage
     }
 
     // Online Syncing
-    public static async Task<int> SyncAllOfflineBookingsAsync(string apiUrl = "http://localhost:5128/api/Booking/create", bool showMessages = true)
+    public static async Task<int> SyncAllOfflineBookingsAsync(string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/create", bool showMessages = true)
     {
         using var connection = new SqliteConnection($"Data Source={DbPath}");
         connection.Open();
@@ -421,7 +421,7 @@ public static class OfflineBookingStorage
     }
 
     // Sync Updated Bookings (IsSynced = 2) - Only completion/payment updates
-    public static async Task<int> SyncUpdatedBookingsAsync(string apiUrl = "http://localhost:5128/api/Booking/checkout", bool showMessages = true)
+    public static async Task<int> SyncUpdatedBookingsAsync(string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/checkout", bool showMessages = true)
     {
         using var connection = new SqliteConnection($"Data Source={DbPath}");
         connection.Open();
@@ -558,7 +558,7 @@ public static class OfflineBookingStorage
     // Sync a single booking update immediately (for real-time online sync)
     private static async Task<bool> SyncSingleBookingUpdateAsync(string bookingId, TimeSpan outTime, string status, string paymentMethod, decimal? totalAmount = null, decimal? paidAmount = null, decimal? balanceAmount = null, int? totalHours = null)
     {
-        string apiUrl = "http://localhost:5128/api/Booking/checkout";
+        string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/checkout";
         
         try
         {
@@ -931,7 +931,7 @@ public static class OfflineBookingStorage
             }
 
             // 🔹 API endpoint
-            string apiUrl = "http://localhost:5128/api/Booking/online-book";
+            string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Booking/online-book";
 
             // 🔹 Convert booking object to JSON
             string json = JsonConvert.SerializeObject(booking);
@@ -1299,7 +1299,7 @@ public static class OfflineBookingStorage
         }
     }
 
-    public static async Task<bool> FetchAndSaveWorkerSettingsAsync(string adminId, string apiUrl = "http://localhost:5128/api/Settings/hall-types")
+    public static async Task<bool> FetchAndSaveWorkerSettingsAsync(string adminId, string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Settings/hall-types")
     {
         try
         {
@@ -1494,7 +1494,7 @@ public static class OfflineBookingStorage
     }
 
     // Fetch and save printer details from API
-    public static async Task<bool> FetchAndSavePrinterDetailsAsync(string adminId, string apiUrl = "http://localhost:5128/api/Settings/printer-details")
+    public static async Task<bool> FetchAndSavePrinterDetailsAsync(string adminId, string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Settings/printer-details")
     {
         try
         {
@@ -1564,7 +1564,7 @@ public static class OfflineBookingStorage
     }
 
     // Fetch Type2 (sleeping) details from API
-    public static async Task<List<Type2Detail>> FetchType2DetailsAsync(string adminId, string apiUrl = "http://localhost:5128/api/Settings/sleeping-details")
+    public static async Task<List<Type2Detail>> FetchType2DetailsAsync(string adminId, string apiUrl = "https://railway-worker-backend.artechnology.pro/api/Settings/sleeping-details")
     {
         try
         {

@@ -150,7 +150,7 @@ namespace UserModule
                 }
 
                 // Fetch from API
-                string apiUrl = $"http://localhost:5128/api/worker/get-seating-types/{adminId}/{workerId}";
+                string apiUrl = $"https://railway-api.artechnology.pro/api/worker/get-seating-types/{adminId}/{workerId}";
                 using (HttpClient client = new HttpClient())
                 {
                     var response = await client.GetAsync(apiUrl);
