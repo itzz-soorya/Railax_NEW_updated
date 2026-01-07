@@ -41,15 +41,8 @@ namespace UserModule
 
         public App()
         {
-            // Attach console window for debugging
-            if (GetConsoleWindow() == IntPtr.Zero)
-            {
-                AllocConsole();
-            }
-            
-            Console.WriteLine("====================================");
-            Console.WriteLine("    RAILAX - Console Logging Active");
-            Console.WriteLine("====================================\n");
+            // Console window disabled for production
+            // Logging still works to file via Logger.Log()
             
             // Global exception handlers to prevent crashes
             this.DispatcherUnhandledException += App_DispatcherUnhandledException;
