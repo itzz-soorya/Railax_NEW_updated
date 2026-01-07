@@ -1,0 +1,6 @@
+@RAILWAY_BACKEND_HostAddress = http://localhost:5170
+
+GET {{RAILWAY_BACKEND_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
