@@ -217,29 +217,49 @@ updateCmd.ExecuteNonQuery();
             using var connection = new NpgsqlConnection(connectionString);
             connection.Open();
 
-            
-            string updateQuery = @"
+            // Build dynamic update query based on provided fields
+            var updateFields = new List<string>
+            {
+                "out_time = @out_time",
+                "status = @status",
+                "payment_method = @payment_method",
+                "updated_at = CURRENT_TIMESTAMP"
+            };
+
+            if (request.total_amount.HasValue)
+                updateFields.Add("total_amount = @total_amount");
+            if (request.paid_amount.HasValue)
+                updateFields.Add("paid_amount = @paid_amount");
+            if (request.balance_amount.HasValue)
+                updateFields.Add("balance_amount = @balance_amount");
+            if (request.total_hours.HasValue)
+                updateFields.Add("total_hours = @total_hours");
+
+            string updateQuery = $@"
             UPDATE bookings 
-            SET out_time = @out_time,
-            status = @status,
-            payment_method = @payment_method,
-            updated_at = CURRENT_TIMESTAMP
+            SET {string.Join(", ", updateFields)}
             WHERE booking_id = @booking_id;";
 
             using var cmd = new NpgsqlCommand(updateQuery, connection);
 
-            
             TimeSpan outTime = request.out_time == TimeSpan.Zero ? DateTime.Now.TimeOfDay : request.out_time;
             string status = string.IsNullOrEmpty(request.status) ? "Completed" : request.status;
-            string paymentMethod = request.payment_method ?? "cash"; 
+            string paymentMethod = request.payment_method ?? "cash";
 
-            
-            cmd.Parameters.AddWithValue("@out_time", outTime);  
+            cmd.Parameters.AddWithValue("@out_time", outTime);
             cmd.Parameters.AddWithValue("@status", status);
             cmd.Parameters.AddWithValue("@payment_method", paymentMethod);
             cmd.Parameters.AddWithValue("@booking_id", request.booking_id);
 
-           
+            if (request.total_amount.HasValue)
+                cmd.Parameters.AddWithValue("@total_amount", request.total_amount.Value);
+            if (request.paid_amount.HasValue)
+                cmd.Parameters.AddWithValue("@paid_amount", request.paid_amount.Value);
+            if (request.balance_amount.HasValue)
+                cmd.Parameters.AddWithValue("@balance_amount", request.balance_amount.Value);
+            if (request.total_hours.HasValue)
+                cmd.Parameters.AddWithValue("@total_hours", request.total_hours.Value);
+
             int rows = cmd.ExecuteNonQuery();
             if (rows == 0)
                 return NotFound(new { message = "Booking not found" });
@@ -250,7 +270,11 @@ updateCmd.ExecuteNonQuery();
                 booking_id = request.booking_id,
                 out_time = outTime.ToString(),
                 status = status,
-                payment_method = paymentMethod
+                payment_method = paymentMethod,
+                total_amount = request.total_amount,
+                paid_amount = request.paid_amount,
+                balance_amount = request.balance_amount,
+                total_hours = request.total_hours
             });
         }
 
@@ -390,6 +414,10 @@ updateCmd.ExecuteNonQuery();
             public TimeSpan out_time { get; set; }
             public string status { get; set; } = "";
             public string payment_method { get; set; } = "cash";
+            public decimal? total_amount { get; set; }
+            public decimal? paid_amount { get; set; }
+            public decimal? balance_amount { get; set; }
+            public int? total_hours { get; set; }
         }
 
         public class NewBookingRequest

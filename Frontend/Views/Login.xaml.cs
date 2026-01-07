@@ -170,7 +170,7 @@ namespace UserModule
             
             // Console log: Request payload
             Console.WriteLine("\n=== LOGIN REQUEST ===");
-            Console.WriteLine($"API Endpoint: https://railway-worker-backend.artechnology.pro/api/Login/check");
+            Console.WriteLine($"API Endpoint: http://localhost:5128/api/Login/check");
             Console.WriteLine($"Request Payload: {json}");
             
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -181,7 +181,7 @@ namespace UserModule
                 {
                     client.Timeout = TimeSpan.FromSeconds(6);
 
-                    HttpResponseMessage response = await client.PostAsync("https://railway-worker-backend.artechnology.pro/api/Login/check", content);
+                    HttpResponseMessage response = await client.PostAsync("http://localhost:5128/api/Login/check", content);
                     
                     // Console log: Response status
                     Console.WriteLine("\n=== API RESPONSE ===");
